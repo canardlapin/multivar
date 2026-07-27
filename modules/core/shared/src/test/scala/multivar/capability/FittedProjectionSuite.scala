@@ -5,6 +5,7 @@ import multivar.core.*
 import multivar.capability.*
 import multivar.family.spectral.*
 import multivar.family.paired.*
+import multivar.advanced.{sourceFrame, typedFrame}
 
 import gale.linalg.DMat
 import gale.linalg.DVec
@@ -225,10 +226,10 @@ class FittedProjectionSuite extends munit.FunSuite:
       )
     )
     val componentCount = ComponentCount.unsafe(1)
-    val pca = Pca.fit(x, componentCount).toOption.get.transform
-    val plsc = Plsc.fit(x, y, componentCount).toOption.get.sourceTransform
-    val cca = Cca.fit(x, y, componentCount, ridge = 0.1).toOption.get.sourceTransform
-    val rrr = ReducedRankRegression.fit(x, y, componentCount).toOption.get.sourceTransform
+    val pca = Pca.fit(x, componentCount).toOption.get.typedFrame
+    val plsc = Plsc.fit(x, y, componentCount).toOption.get.sourceFrame
+    val cca = Cca.fit(x, y, componentCount, ridge = 0.1).toOption.get.sourceFrame
+    val rrr = ReducedRankRegression.fit(x, y, componentCount).toOption.get.sourceFrame
     val transforms = Vector(pca, plsc, cca, rrr)
     val column = IndexSet.from(Vector(1), IndexAxis.Feature).toOption.get
     val partial = x.selectColumns(column).toOption.get

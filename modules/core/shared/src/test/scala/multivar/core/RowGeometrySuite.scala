@@ -3,6 +3,7 @@ package core
 
 import multivar.core.*
 import multivar.family.spectral.*
+import multivar.advanced.svdResult
 
 import gale.linalg.DMat
 import gale.linalg.DVec
@@ -138,10 +139,10 @@ class RowGeometrySuite extends munit.FunSuite:
       .toOption
       .get
 
-    assertVectorClose(conditioned.singularValues, whitened.result.singularValues, 1e-9)
+    assertVectorClose(conditioned.singularValues, whitened.svdResult.singularValues, 1e-9)
     assertMatrixClose(
       rightSpectralGram(conditioned.axes.get.toDense.toOption.get, conditioned.singularValues),
-      rightSpectralGram(whitened.result.v, whitened.result.singularValues),
+      rightSpectralGram(whitened.svdResult.v, whitened.svdResult.singularValues),
       1e-9
     )
   }

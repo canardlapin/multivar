@@ -4,6 +4,7 @@ package capability
 import multivar.core.*
 import multivar.capability.*
 import multivar.family.paired.*
+import multivar.advanced.{sourceFrame, targetFrame}
 
 import gale.linalg.DMat
 import gale.linalg.DVec
@@ -320,14 +321,14 @@ class FittedSynthesisSuite extends munit.FunSuite:
     )
     val components = ComponentCount.unsafe(1)
     val plsc = Plsc.fit(x, y, components).toOption.get
-    val plscSource = plsc.sourceTransform.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
-    val plscTarget = plsc.targetTransform.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
+    val plscSource = plsc.sourceFrame.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
+    val plscTarget = plsc.targetFrame.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
     val one = ComponentScaling.identity(1).toOption.get
     val plscTransfer = PairedTransfer.forPlsc(plsc, plscSource, plscTarget, one).toOption.get
     assertEquals(plscTransfer(x).toOption.get.values.rows, x.rows)
 
     val cca = Cca.fit(x, y, components, ridge = 0.1).toOption.get
-    val ccaSource = cca.sourceTransform.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
-    val ccaTarget = cca.targetTransform.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
+    val ccaSource = cca.sourceFrame.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
+    val ccaTarget = cca.targetFrame.withEuclideanSynthesis(Ridge(0.0).toOption.get).toOption.get
     val ccaTransfer = PairedTransfer.forCca(cca, ccaSource, ccaTarget, one).toOption.get
     assertEquals(ccaTransfer(x).toOption.get.values.cols, y.cols)

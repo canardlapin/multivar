@@ -20,12 +20,12 @@ final class ClassIncidence private (
   val classes: Int = weights.cols
 
 object ClassIncidence:
-  def hard(labels: Seq[Int]): Either[MultivarError, ClassIncidence] =
+  def hard[L: Ordering](labels: Seq[L]): Either[MultivarError, ClassIncidence] =
     val values = labels.toVector
     if values.isEmpty then Left(MultivarError.MatrixShapeMismatch("class labels must be non-empty"))
     else
       val classes = values.distinct.sorted
-      if classes.length < 2 then Left(MultivarError.MatrixShapeMismatch("LDA requires at least two classes"))
+      if classes.length < 2 then Left(MultivarError.MatrixShapeMismatch("Fisher discriminant requires at least two classes"))
       else
         val index = classes.zipWithIndex.toMap
         val out = new Array[Double](values.length * classes.length)
@@ -185,7 +185,16 @@ object LdaRowRelations:
 
 enum WithinScatterPolicy:
   case RequirePositiveDefinite
+
+  /** Absolute ridge equal to `fraction * trace(W) / dim`. */
   case FixedTraceScaledRidge(fraction: TraceRidgeFraction)
+
+object WithinScatterPolicy:
+  /** Default ordinary within-scatter regularization: a tiny trace-scaled ridge. */
+  val defaultTraceScaled: WithinScatterPolicy =
+    TraceRidgeFraction(1e-8) match
+      case Right(fraction) => FixedTraceScaledRidge(fraction)
+      case Left(_)         => RequirePositiveDefinite
 
 enum LdaObjective:
   case FisherRayleigh
@@ -551,55 +560,48 @@ final class PreparedLdaProblem private[multivar] (
   ): Either[MultivarError, LdaOperatorFit[rows.Id, features.Id, ? <: SemanticSpace]] =
     value.fit(components, objective)
 
-final case class LdaFit(
-    result: LdaOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace],
-    transform: FittedFrameTransform
+/** Opaque Fisher discriminant projection. Classification is out of scope for this fit. */
+final class FisherDiscriminantFit private[multivar] (
+    private val operator: LdaOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace],
+    private val frame: FittedFrameTransform
 ):
-  def scores: DMat = transform.scores
+  def scores: DMat = frame.scores
 
-  def weights: DMat = transform.weights
+  def weights: DMat = frame.weights
 
-  def criterionValues: DVec = result.criterionValues
+  def criterionValues: DVec = operator.criterionValues
 
-  def project(input: DMat): Either[MultivarError, DMat] =
-    project(MatrixView.dense(input))
+  def transform(input: DMat): Either[MultivarError, DMat] =
+    transform(MatrixView.dense(input))
 
-  def project(input: MatrixView): Either[MultivarError, DMat] =
-    transform.project(input)
+  def transform(input: MatrixView): Either[MultivarError, DMat] =
+    frame.project(input)
 
-object Lda:
-  def fit(
+object FisherDiscriminantFit:
+  private[multivar] def operatorOf(
+      fit: FisherDiscriminantFit
+  ): LdaOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace] =
+    fit.operator
+
+  private[multivar] def frameOf(fit: FisherDiscriminantFit): FittedFrameTransform =
+    fit.frame
+
+/** Dense Fisher discriminant analysis: a labelled projection, not a classifier. */
+object FisherDiscriminant:
+  def fit[L: Ordering](
       input: DMat,
-      labels: Seq[Int],
-      components: Int
-  ): Either[MultivarError, LdaFit] =
-    fit(input, labels, components, ridge = 1e-8)
-
-  def fit(
-      input: DMat,
-      labels: Seq[Int],
+      labels: Seq[L],
       components: Int,
-      ridge: Double
-  ): Either[MultivarError, LdaFit] =
-    fit(input, labels, components, ridge, LdaObjective.FisherRayleigh)
-
-  def fit(
-      input: DMat,
-      labels: Seq[Int],
-      components: Int,
-      ridge: Double,
-      objective: LdaObjective
-  ): Either[MultivarError, LdaFit] =
+      withinRegularization: WithinScatterPolicy = WithinScatterPolicy.defaultTraceScaled,
+      objective: LdaObjective = LdaObjective.FisherRayleigh
+  ): Either[MultivarError, FisherDiscriminantFit] =
     for
       checked <- ComponentCount(components)
       incidence <- ClassIncidence.hard(labels)
-      withinPolicy <-
-        if ridge == 0.0 then Right(WithinScatterPolicy.RequirePositiveDefinite)
-        else TraceRidgeFraction(ridge).map(WithinScatterPolicy.FixedTraceScaledRidge(_))
       problem <- LdaProblem.fromMatrix(
         input,
         incidence,
-        withinPolicy
+        withinRegularization
       )
       operator <- problem.fit(checked, objective)
       weights <- ldaFrameWeights(operator)
@@ -608,11 +610,11 @@ object Lda:
         MatrixView.dense(input),
         weights,
         preprocessor,
-        "lda",
+        "fisher-discriminant",
         checked,
         Some(operator.criterionValues)
       )
-    yield LdaFit(operator, transform)
+    yield new FisherDiscriminantFit(operator, transform)
 
 private final case class LdaSolved(
     vectors: DMat,

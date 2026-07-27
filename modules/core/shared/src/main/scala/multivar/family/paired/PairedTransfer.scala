@@ -83,7 +83,7 @@ object PairedTransfer:
       target: FittedBidirectionalTransform,
       scaling: ComponentScaling
   ): Either[MultivarError, PairedTransfer] =
-    requireFitTransforms(fit.sourceTransform, fit.targetTransform, source, target)
+    requireFitTransforms(PlscFit.sourceOf(fit), PlscFit.targetOf(fit), source, target)
       .flatMap(_ => from(PairedTransferEstimand.Plsc, source, target, scaling))
 
   def forCca(
@@ -92,7 +92,7 @@ object PairedTransfer:
       target: FittedBidirectionalTransform,
       scaling: ComponentScaling
   ): Either[MultivarError, PairedTransfer] =
-    requireFitTransforms(fit.sourceTransform, fit.targetTransform, source, target)
+    requireFitTransforms(CcaFit.sourceOf(fit), CcaFit.targetOf(fit), source, target)
       .flatMap(_ => from(PairedTransferEstimand.Cca, source, target, scaling))
 
   private[multivar] def from(

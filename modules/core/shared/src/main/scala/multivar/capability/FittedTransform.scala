@@ -185,7 +185,7 @@ final class FittedCoefficientTransform private (
     val sourceFeatureSpace: SpaceRef,
     val targetFeatureSpace: SpaceRef,
     val predictorPreprocessor: FittedPreprocessor,
-    val responsePreprocessor: FittedPreprocessor,
+    val responsePreprocessor: FittedInvertiblePreprocessor,
     val provenance: SemanticProvenance
 )(
     val coefficient: OpCoefficient[sourceFeatureSpace.Id, targetFeatureSpace.Id, UncheckedEvidence],
@@ -232,10 +232,16 @@ final class FittedCoefficientTransform private (
     yield dense
 
 object FittedCoefficientTransform:
+  /** Build a directed prediction transform.
+    *
+    * The response preprocessor must already be invertible: a prediction that cannot be
+    * returned in the original response units is not a prediction, and discovering that
+    * at `predict` time would report the failure far from the scale that caused it.
+    */
   def from(
       coefficient: DMat,
       predictorPreprocessor: FittedPreprocessor,
-      responsePreprocessor: FittedPreprocessor,
+      responsePreprocessor: FittedInvertiblePreprocessor,
       method: String
   ): Either[MultivarError, FittedCoefficientTransform] =
     val cleanMethod = method.trim

@@ -1,13 +1,15 @@
 # Discriminant and canonical methods
 
-Use `Lda.fit` when each row has a class label and the goal is a low-dimensional
-linear separation of those classes.
+Use `FisherDiscriminant.fit` when each row has a class label and the goal is a
+low-dimensional linear separation of those classes. The fit is a projection,
+not a classifier: it exposes scores, weights, and criterion values, not class
+priors or `predict`.
 
-## Fit linear discriminant analysis
+## Fit a Fisher discriminant projection
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.canonical.Lda
+import multivar.analysis.*
 
 val x = Matrix(6, 2)(
    0.0, 0.0,
@@ -19,7 +21,7 @@ val x = Matrix(6, 2)(
 )
 
 val labels = Vector(0, 0, 0, 1, 1, 1)
-val lda = Lda.fit(x, labels, components = 1)
+val lda = FisherDiscriminant.fit(x, labels, components = 1)
 ```
 
 ```scala mdoc
@@ -28,13 +30,15 @@ lda.map(fit => (fit.scores.rows, fit.weights.rows, fit.criterionValues.length))
 
 `scores` contains the training rows in discriminant coordinates. `weights`
 contains the feature directions, and `criterionValues` reports the fitted
-discriminant roots. `project(newX)` scores new rows after checking their column
-count.
+discriminant roots. `transform(newX)` scores new rows after checking their
+column count. Labels may be any ordered type, not only integers.
 
-The default trace-scaled ridge keeps the within-class scatter invertible in
-many small-sample or high-dimensional problems. Pass `ridge = 0.0` to require
-an unregularized positive-definite within-class scatter. The fit then returns a
-typed error if that condition does not hold.
+The default `WithinScatterPolicy.defaultTraceScaled` keeps the within-class
+scatter invertible in many small-sample or high-dimensional problems. Pass
+`WithinScatterPolicy.RequirePositiveDefinite` to require an unregularized
+positive-definite within-class scatter. The fit then returns a typed error if
+that condition does not hold. Soft class incidence and trial nuisance designs
+remain available on the advanced operator path.
 
 The maximum useful component count is bounded by both the number of features
 and the number of classes minus one.
@@ -53,4 +57,4 @@ The canonical package also contains three operator-level model families:
 These APIs start after a caller has defined the effect, residual, and any
 constraints. They do not infer a design matrix or statistical contrast from
 labels. Use them when those operators already come from a model-fitting layer;
-use `Lda.fit` for labelled dense data.
+use `FisherDiscriminant.fit` for labelled dense data.

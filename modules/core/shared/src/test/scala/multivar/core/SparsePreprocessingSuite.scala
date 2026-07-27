@@ -34,6 +34,18 @@ class SparsePreprocessingSuite extends munit.FunSuite:
         col += 1
       row += 1
 
+  private def assertVectorClose(actual: DVec, expected: DVec, tol: Double): Unit =
+    assertEquals(actual.length, expected.length)
+    var index = 0
+    while index < actual.length do
+      assertEqualsDouble(actual(index), expected(index), tol)
+      index += 1
+
+  private def summaryOf(fitted: FittedInvertiblePreprocessor): ColumnAffineSummary =
+    fitted match
+      case affine: InvertibleColumnAffine => affine.summary
+      case other                          => fail(s"expected InvertibleColumnAffine, got $other")
+
   private def denseTransform(scale: Vector[Double], shift: Vector[Double]): Vector[Vector[Double]] =
     denseRows.map { row =>
       row.zipWithIndex.map { case (value, col) => value * scale(col) + shift(col) }
@@ -44,7 +56,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
     val passOut = pass.transform(sparseView).toOption.get
     assertEquals(passOut.storage, StorageKind.Sparse)
 
-    val scaleSpec = PreprocessSpec.scale(Vector(2.0, 0.5, -1.0)).toOption.get
+    val scaleSpec = PreprocessSpec.multiplyColumns(Vector(2.0, 0.5, -1.0)).toOption.get
     val scale = scaleSpec.fit(sparseView).toOption.get
     val scaled = scale.transform(sparseView).toOption.get
 
@@ -75,7 +87,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
   }
 
   test("standardizing sparse matrices stays lazy and matches dense arithmetic") {
-    val fitted = PreprocessSpec.Standardize.fit(sparseView).toOption.get
+    val fitted = PreprocessSpec.Standardize().fit(sparseView).toOption.get
     val standardized = fitted.transform(sparseView).toOption.get
     val means = Vector(1.25, 2.25, 1.75)
     val sds = Vector(1.8929694486000912, 2.8722813232690143, 2.362907813126304)
@@ -164,7 +176,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
       Vector(1e-10 - 5e-13)
     )
     val view = MatrixView.dense(GaleNumerics.matrixFromRows(rows))
-    val fitted = PreprocessSpec.Standardize.fit(view).toOption.get
+    val fitted = PreprocessSpec.Standardize().fit(view).toOption.get
     val out = fitted.transform(view).toOption.get.toDense(StoragePolicy.AllowDense).toOption.get
     val sds = ColumnStats.fromDense(out).flatMap(_.sampleStandardDeviations).toOption.get
 
@@ -174,7 +186,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
   test("standardize treats constant columns as degenerate and centers them only") {
     val rows = Vector.fill(4)(Vector(3.5, 1e8))
     val view = MatrixView.dense(GaleNumerics.matrixFromRows(rows))
-    val fitted = PreprocessSpec.Standardize.fit(view).toOption.get
+    val fitted = PreprocessSpec.Standardize().fit(view).toOption.get
     val out = fitted.transform(view).toOption.get.toDense(StoragePolicy.AllowDense).toOption.get
 
     var row = 0
@@ -187,7 +199,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
   test("standardize keeps a unit scale for numerically constant huge-magnitude columns") {
     val rows = Vector.fill(3)(Vector(1e8 + 0.1))
     val view = MatrixView.dense(GaleNumerics.matrixFromRows(rows))
-    val fitted = PreprocessSpec.Standardize.fit(view).toOption.get
+    val fitted = PreprocessSpec.Standardize().fit(view).toOption.get
 
     fitted match
       case affine: FittedColumnAffine =>
@@ -197,7 +209,7 @@ class SparsePreprocessingSuite extends munit.FunSuite:
   }
 
   test("fitted preprocessor supports column-subset transform and inverse transform") {
-    val fitted = PreprocessSpec.Center.fit(sparseView).toOption.get
+    val fitted = PreprocessSpec.Center.fitInvertible(sparseView).toOption.get
     val columnSet = IndexSet.from(Vector(2, 0), IndexAxis.Feature).toOption.get
     val subset = sparseView.selectColumns(columnSet).toOption.get
 
@@ -216,40 +228,78 @@ class SparsePreprocessingSuite extends munit.FunSuite:
     )
   }
 
-  test("standardizing a single-row matrix reports insufficient rows") {
-    val view = MatrixView.dense(GaleNumerics.matrixFromRows(Vector(Vector(1.0, 2.0))))
-
-    PreprocessSpec.Standardize.fit(view) match
-      case Left(MultivarError.InsufficientRows("sample standard deviations", 2, 1)) => ()
-      case other => fail(s"expected InsufficientRows, got $other")
-  }
-
   test("preprocessing fit rejects inputs without columns") {
     val view = MatrixView.dense(DMat.zeros(3, 0))
 
     PreprocessSpec.Pass.fit(view) match
       case Left(MultivarError.InvalidDimension("preprocessing input columns", 0)) => ()
       case other => fail(s"expected InvalidDimension, got $other")
-    assert(PreprocessSpec.Standardize.fit(view).isLeft)
+    assert(PreprocessSpec.Standardize().fit(view).isLeft)
   }
 
-  test("scale preprocessing rejects wrong-length weights") {
-    val spec = PreprocessSpec.scale(Vector(1.0, 2.0)).toOption.get
+  test("column multiplication rejects wrong-length weights") {
+    val spec = PreprocessSpec.multiplyColumns(Vector(1.0, 2.0)).toOption.get
 
     assert(spec.fit(sparseView).swap.toOption.exists(_.message.contains("length 2 != expected 3")))
-    assert(PreprocessSpec.scale(Vector(1.0, Double.NaN)).isLeft)
+    assert(PreprocessSpec.multiplyColumns(Vector(1.0, Double.NaN)).isLeft)
   }
 
-  test("inverse transform reports non-invertible scale weights precisely") {
+  test("requiring invertibility reports a non-invertible scale weight precisely") {
     val fitted = FittedColumnAffine(
       inputCols = 3,
       scale = DVec.fromSeq(Vector(1.0, 0.0, 2.0)),
       shift = MatrixView.zeros(3)
     )
 
-    fitted.inverseTransform(sparseView) match
+    fitted.requireInvertible match
       case Left(MultivarError.NonInvertibleValue("affine inverse scale", 1, 0.0)) => ()
       case other => fail(s"expected NonInvertibleValue, got $other")
+  }
+
+  test("a zero column weight is rejected when the fit must be invertible, not when it is undone") {
+    val spec = PreprocessSpec.multiplyColumns(Vector(2.0, 0.0, 1.0)).toOption.get
+
+    assert(spec.fit(sparseView).isRight, "collapsing a column is a valid transform")
+    assert(spec.fitInvertible(sparseView).isLeft, "but it cannot be undone")
+  }
+
+  test("an invertible fit round-trips and reports its centering and scaling") {
+    val fitted = PreprocessSpec.Standardize().fitInvertible(sparseView).toOption.get
+    val transformed = fitted.transform(sparseView).toOption.get
+    val restored = fitted.inverseTransform(transformed).toOption.get
+
+    assertMatrixClose(restored.toDense(StoragePolicy.AllowDense).toOption.get, denseRows, 1e-12)
+
+    val summary = summaryOf(fitted)
+    val stats = sparseView.columnStats.toOption.get
+
+    assertVectorClose(summary.center, stats.means.toOption.get, 1e-12)
+    assertVectorClose(summary.scale, stats.sampleStandardDeviations.toOption.get, 1e-12)
+  }
+
+  test("the variance convention changes the fitted scale") {
+    val sample = PreprocessSpec.Standardize().fitInvertible(sparseView).toOption.get
+    val population =
+      PreprocessSpec.Standardize(VarianceConvention.Population).fitInvertible(sparseView).toOption.get
+
+    val sampleScale = summaryOf(sample).scale
+    val populationScale = summaryOf(population).scale
+    val rows = sparseView.rows
+    val ratio = Math.sqrt((rows - 1).toDouble / rows.toDouble)
+
+    var col = 0
+    while col < sampleScale.length do
+      assertEqualsDouble(populationScale(col), sampleScale(col) * ratio, 1e-12)
+      col += 1
+  }
+
+  test("population standard deviations are defined for a single row where sample ones are not") {
+    val view = MatrixView.dense(GaleNumerics.matrixFromRows(Vector(Vector(1.0, 2.0))))
+
+    PreprocessSpec.Standardize().fit(view) match
+      case Left(MultivarError.InsufficientRows("sample standard deviations", 2, 1)) => ()
+      case other => fail(s"expected InsufficientRows, got $other")
+    assert(PreprocessSpec.Standardize(VarianceConvention.Population).fit(view).isRight)
   }
 
   test("restrict narrows a fitted preprocessor to selected columns") {

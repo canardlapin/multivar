@@ -12,8 +12,7 @@ Pass a `PreprocessSpec` when the default is not right for the analysis:
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.core.PreprocessSpec
-import multivar.family.spectral.Pca
+import multivar.analysis.*
 
 val x = Matrix(5, 3)(
   1.0, 10.0, 2.0,
@@ -24,13 +23,25 @@ val x = Matrix(5, 3)(
 )
 
 val standardized =
-  Pca.fit(x, components = 2, preproc = PreprocessSpec.Standardize)
+  Pca.fit(x, components = 2, preproc = PreprocessSpec.Standardize())
 ```
 
-`Standardize` subtracts the training mean and divides by the sample standard
-deviation. `Center` only subtracts the mean. `Pass` leaves values unchanged.
-The fitted preprocessor is stored with the result, so `project`, `predict`, and
-`transform` apply the same operation to new rows.
+`Standardize()` subtracts the training mean and divides by the standard
+deviation. Its argument names the denominator: `VarianceConvention.Sample`, the
+default, divides the centered sum of squares by `n - 1`, and
+`VarianceConvention.Population` divides by `n`. `Center` only subtracts the
+mean. `MultiplyColumns` applies weights you supply. `Pass` leaves values
+unchanged. The fitted preprocessor is stored with the result, so `transform`,
+`project`, and `predict` apply the same operation to new rows.
+
+Applying preprocessing always works; undoing it does not. A zero column weight
+transforms fine and cannot be reversed, so the ability to return original
+coordinates lives in the type rather than in a runtime check: only a
+`FittedInvertiblePreprocessor` has `inverseTransform`, and
+`requireInvertible` is the one way to obtain one. Analyses that must report
+results in original units, such as the response side of a regression, demand
+that type in their own signatures, so an unusable scale is rejected when it is
+supplied rather than at the first prediction.
 
 ## Results name the quantities users inspect
 
@@ -39,12 +50,14 @@ projection of the training data:
 
 | Fit | Main fields |
 | --- | --- |
-| `SvdFit`, `PcaFit` | `scores`, `loadings`, `singularValues` |
+| `PcaFit` | `scores`, `loadings`, `singularValues`, `explainedVariance`, `explainedVarianceRatio`, `center`, `scale` |
+| `SvdFit` | `scores`, `loadings`, `singularValues`, `inertia`, `inertiaRatio`, `center`, `scale` |
 | `PlscFit` | `xScores`, `yScores`, `xWeights`, `yWeights`, `covariances` |
 | `CcaFit` | `xScores`, `yScores`, `xWeights`, `yWeights`, `correlations` |
-| `ReducedRankRegressionFit` | `coefficients`, scores, weights, loadings |
-| `LdaFit` | `scores`, `weights`, `criterionValues` |
-| `GpcaFit` | `scores`, `weights`, `eigenvalues`, `singularValues` |
+| `ReducedRankRegressionFit` | `coefficients`, `intercept`, scores, weights |
+| `PlsRegressionFit` | `coefficients`, `intercept`, X-scores, rotations |
+| `FisherDiscriminantFit` | `scores`, `weights`, `criterionValues` |
+| `GpcaFit` | `scores`, `weights`, `eigenvalues`, `singularValues`, `center` |
 | `CpcaFit` | `scores`, `loadings`, `singularValues` |
 | `NystromFit` | `scores`, `eigenvalues` |
 

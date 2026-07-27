@@ -124,6 +124,18 @@ class PlanSuite extends munit.FunSuite:
         fail(s"expected CCA paired method, got $other")
   }
 
+  test("PairedMultivarPlan rank limits differ for PLS versus cross-spectral estimators") {
+    val uni = PairedSampleByFeatureInput.of(inputRef("x", 8, 4), inputRef("y", 8, 1)).toOption.get
+    assert(PairedMultivarPlan.of("pls-ok", uni, PairedMultivarEstimator.PlsRegression(ComponentCount(2).toOption.get)).isRight)
+    PairedMultivarPlan.of("pls-bad", uni, PairedMultivarEstimator.PlsRegression(ComponentCount(5).toOption.get)) match
+      case Left(MultivarError.InvalidComponentRequest(5, 4)) => ()
+      case other => fail(s"expected PLS min(n,p)=4 rejection, got $other")
+
+    PairedMultivarPlan.of("rrr-bad", uni, PairedMultivarEstimator.ReducedRankRegression(ComponentCount(2).toOption.get)) match
+      case Left(MultivarError.InvalidComponentRequest(2, 1)) => ()
+      case other => fail(s"expected RRR min(n,p,q)=1 rejection, got $other")
+  }
+
   test("ROI plans validate feature bounds and duplicate ROI ids") {
     val badBounds = RoiPlanSet.of("bad", Vector(roi("x", 0, 3)), featureCount = 3)
     val duplicate = RoiPlanSet.of("dup", Vector(roi("x", 0), roi("x", 1)), featureCount = 3)
@@ -194,8 +206,8 @@ class PlanSuite extends munit.FunSuite:
     assertEquals(artifact.shape.components, 2)
     artifact match
       case FitArtifact.KernelArtifact(_, fit) =>
-        assertEquals(fit.kernel.name, "rbf")
-        assertEquals(fit.landmarks.indices, Vector(0, 1, 2, 3))
+        assertEquals(NystromFit.kernelSpecOf(fit).name, "rbf")
+        assertEquals(NystromFit.landmarksOf(fit).indices, Vector(0, 1, 2, 3))
       case _ =>
         fail("expected kernel artifact")
   }
@@ -208,7 +220,7 @@ class PlanSuite extends munit.FunSuite:
       rois,
       MultivarEstimator.Gpca(
         ComponentCount(1).toOption.get,
-        preprocessing = PreprocessSpec.Pass,
+        centering = GpcaCentering.None,
         rowMetric = Some(MetricSpec.diagonal(DVec.fromSeq(Vector(1.0, 2.0, 1.0, 0.5))).toOption.get),
         columnMetric = Some(MetricSpec.diagonal(DVec.fromSeq(Vector(1.0, 0.25))).toOption.get),
         backend = GpcaBackend.Eigen(),
@@ -252,6 +264,7 @@ class PlanSuite extends munit.FunSuite:
     val spec = CpcaEstimatorSpec(
       blocks = Vector(CpcaBlock.GxH),
       defaultComponents = Some(ComponentCount(1).toOption.get),
+      preprocessing = PreprocessSpec.Pass,
       rowConstraint = CpcaConstraint.Basis(rowDesign),
       columnConstraint = CpcaConstraint.Basis(columnDesign)
     )

@@ -34,17 +34,11 @@ ThisBuild / publishMavenStyle := true
 ThisBuild / tlSitePublishBranch := None
 ThisBuild / tlSitePublishTags := false
 
-// Immutable source dependency containing the shared matrix, operator, solver,
-// spectral, and first-order optimization substrate.
+// Gale is a Maven dependency so published multivar POMs declare a resolvable
+// coordinate rather than a Git ProjectRef. Until Gale is on Maven Central, CI
+// and local builds install the pinned revision with tools/publish-gale-local.sh.
 lazy val galeRevision = "d55fe2f97196a76ab7879e1a12f1e92403aeba06"
-lazy val galeBuild =
-  uri(s"https://github.com/canardlapin/gale.git#$galeRevision")
-lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
-lazy val galeCoreJS  = ProjectRef(galeBuild, "coreJS")
-
-// Compile the pinned Gale source dependency on its published Scala baseline.
-galeCoreJVM / scalaVersion := "3.7.4"
-galeCoreJS / scalaVersion  := "3.7.4"
+lazy val galeVersion  = s"1.0.0-${galeRevision.take(12)}"
 
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
@@ -55,6 +49,13 @@ lazy val commonSettings = Seq(
   ),
   Test / fork := false,
   libraryDependencies += "org.scalameta" %%% "munit" % "1.2.1" % Test
+)
+
+lazy val mimaSettings = Seq(
+  // No previous release yet: MiMa stays idle until 0.1.0 ships, then point
+  // mimaPreviousArtifacts at that coordinate.
+  mimaPreviousArtifacts := Set.empty,
+  mimaFailOnNoPrevious := false
 )
 
 lazy val jsSettings = Seq(
@@ -69,10 +70,10 @@ lazy val core =
     .settings(commonSettings)
     .settings(
       name := "multivar-core",
-      description := "Typed, evidence-bearing multivariate analysis for Scala."
+      description := "Typed, evidence-bearing multivariate analysis for Scala.",
+      libraryDependencies += "io.github.canardlapin" %%% "gale-core" % galeVersion
     )
-    .jvmConfigure(_.dependsOn(galeCoreJVM))
-    .jsConfigure(_.dependsOn(galeCoreJS))
+    .jvmSettings(mimaSettings)
     .jsSettings(jsSettings)
 
 lazy val coreJS  = core.js
@@ -88,8 +89,7 @@ lazy val ir =
       name := "multivar-ir",
       description := "Language-neutral schemas and codecs for multivar programs and evidence."
     )
-    .jvmConfigure(_.dependsOn(galeCoreJVM))
-    .jsConfigure(_.dependsOn(galeCoreJS))
+    .jvmSettings(mimaSettings)
     .jsSettings(jsSettings)
 
 lazy val irJS  = ir.js
@@ -106,6 +106,11 @@ lazy val docs =
     .enablePlugins(TypelevelSitePlugin)
     .settings(
       name := "multivar-docs",
+      publish / skip := true,
+      // mdoc examples import gale.linalg.*; TypelevelSitePlugin's mdoc classpath
+      // does not always surface transitive libraryDependencies of dependsOn
+      // projects after the Phase 4 Maven pin, so pin Gale here explicitly.
+      libraryDependencies += "io.github.canardlapin" %% "gale-core" % galeVersion,
       mdocIn := (ThisBuild / baseDirectory).value / "site-docs",
       laikaConfig := LaikaConfig.defaults.withRawContent,
       tlSiteHelium := tlSiteHelium.value
@@ -139,6 +144,26 @@ lazy val docs =
         .value
     )
 
+/** Consumer that depends only on publishedLocal Maven/Ivy artifacts.
+  *
+  * It must not `dependsOn` the in-repo modules. A green `smoke/compile` is
+  * evidence that the published dependency graph resolves without the source
+  * tree that produced it.
+  */
+lazy val smoke =
+  project
+    .in(file("modules/smoke"))
+    .settings(
+      name := "multivar-smoke",
+      publish / skip := true,
+      scalaVersion := (ThisBuild / scalaVersion).value,
+      scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
+      libraryDependencies ++= Seq(
+        "io.github.canardlapin" %% "multivar-core" % version.value,
+        "io.github.canardlapin" %% "multivar-ir" % version.value
+      )
+    )
+
 lazy val root =
   project
     .in(file("."))
@@ -151,3 +176,8 @@ lazy val root =
 addCommandAlias("compileAll", ";coreJVM/compile;coreJS/compile;irJVM/compile;irJS/compile")
 addCommandAlias("testAll", ";coreJVM/test;coreJS/test;irJVM/test;irJS/test")
 addCommandAlias("docsCheck", "docs/tlSite")
+addCommandAlias(
+  "smokeCheck",
+  ";coreJVM/publishLocal;irJVM/publishLocal;smoke/clean;smoke/compile"
+)
+addCommandAlias("mimaCheck", ";coreJVM/mimaReportBinaryIssues;irJVM/mimaReportBinaryIssues")

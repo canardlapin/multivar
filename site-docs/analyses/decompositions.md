@@ -12,7 +12,7 @@ centered before the decomposition.
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.spectral.{Pca, Svd}
+import multivar.analysis.*
 
 val x = Matrix(5, 3)(
   1.0, 2.0, 0.0,
@@ -33,15 +33,34 @@ val pca = Pca.fit(x, components = 2)
 Both fits expose:
 
 - `scores`: the training rows in component coordinates;
-- `loadings`: one component direction per column; and
-- `singularValues`: the retained singular values.
+- `loadings`: one component direction per column;
+- `components`: the same directions transposed, one per row;
+- `singularValues`: the retained singular values;
+- `center` and `scale`: what the fitted preprocessing removed, as
+  `(x - center) / scale`; and
+- `nFeatures`, `requestedComponents`, `effectiveComponents`.
 
-Call `project(newX)` to score new rows. The method checks the number of columns
-and applies the preprocessor stored during fitting.
+Call `transform(newX)` to score new rows. The method checks the number of
+columns and applies the preprocessor stored during fitting.
+`inverseTransform(scores)` maps component coordinates back to original feature
+coordinates, and `reconstruct(newX)` composes the two to give the rank-`k`
+approximation of `newX`.
+
+The two fits differ in what they claim about the retained shares. PCA centres,
+so it reports `explainedVariance` and `explainedVarianceRatio`. SVD does not
+centre, so its shares are sums of squares about the origin rather than
+variances, and it reports `inertia` and `inertiaRatio` instead. Both describe
+the preprocessed data: under `Standardize()` the PCA variances are those of the
+standardized columns, which is the correlation-PCA convention. The ratios use
+the total of the full preprocessed matrix as their denominator, so a truncated
+fit's shares sum to less than one rather than being renormalized.
+
+Because a variance cannot be estimated from a single observation, `Pca.fit`
+requires at least two rows. `Svd.fit`, which makes no variance claim, does not.
 
 ## Choose preprocessing deliberately
 
-Pass `PreprocessSpec.Standardize` when variables measured on different scales
+Pass `PreprocessSpec.Standardize()` when variables measured on different scales
 should each have unit sample variance. Pass `PreprocessSpec.Pass` to PCA only
 when the matrix has already been prepared and that fact is part of the calling
 code.
@@ -50,5 +69,5 @@ The fitted loadings are directions, not uniquely signed vectors. A solver may
 return the negative of a loading and the negative of its scores without
 changing the fitted subspace.
 
-Next, read [PLSC, CCA, and reduced-rank regression](paired.md) for analyses
+Next, read [PLSC, CCA, RRR, and PLS](paired.md) for analyses
 with two matrices measured on the same rows.

@@ -1,0 +1,41 @@
+# Types forming the ordinary public surface of multivar.
+#
+# This list is the editorial statement of what an ordinary analyst is expected
+# to touch. It is deliberately short. Adding a line here means accepting a
+# compatibility obligation, so a new entry needs the same scrutiny as a new
+# public API.
+#
+# tools/public-surface.sh snapshots the public members of each entry, and of its
+# companion, into tools/public-surface/ordinary-api.txt. Blank lines and lines
+# beginning with '#' are ignored.
+
+# Dense estimators and their fitted results.
+multivar.family.spectral.Pca
+multivar.family.spectral.PcaFit
+multivar.family.spectral.Svd
+multivar.family.spectral.SvdFit
+multivar.family.spectral.Gpca
+multivar.family.spectral.GpcaFit
+multivar.family.paired.Plsc
+multivar.family.paired.PlscFit
+multivar.family.paired.Cca
+multivar.family.paired.CcaFit
+multivar.family.paired.ReducedRankRegression
+multivar.family.paired.ReducedRankRegressionFit
+multivar.family.paired.PlsAlgorithm
+multivar.family.paired.PlsRegression
+multivar.family.paired.PlsRegressionFit
+multivar.family.canonical.FisherDiscriminant
+multivar.family.canonical.FisherDiscriminantFit
+multivar.family.canonical.WithinScatterPolicy
+multivar.family.spectral.GpcaCentering
+multivar.family.cpca.Cpca
+multivar.family.cpca.CpcaFit
+multivar.family.kernel.Nystrom
+multivar.family.kernel.NystromFit
+multivar.family.kernel.KernelSymmetryPolicy
+
+# Configuration and error vocabulary an ordinary caller cannot avoid.
+multivar.core.PreprocessSpec
+multivar.core.VarianceConvention
+multivar.core.MultivarError

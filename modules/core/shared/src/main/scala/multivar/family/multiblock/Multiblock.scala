@@ -28,12 +28,8 @@ final case class BlockwisePreprocessor private (
   ): Either[MultivarError, MatrixView] =
     global.transform(input, columns, policy)
 
-  override def inverseTransform(
-      input: MatrixView,
-      columns: Option[IndexSet],
-      policy: StoragePolicy
-  ): Either[MultivarError, MatrixView] =
-    global.inverseTransform(input, columns, policy)
+  override def requireInvertible: Either[MultivarError, FittedInvertiblePreprocessor] =
+    global.requireInvertible
 
   override def restrict(columns: IndexSet): Either[MultivarError, FittedPreprocessor] =
     global.restrict(columns)

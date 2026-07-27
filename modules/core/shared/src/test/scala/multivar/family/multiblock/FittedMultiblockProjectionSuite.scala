@@ -48,7 +48,7 @@ class FittedMultiblockProjectionSuite extends munit.FunSuite:
         BlockPreprocessSpec(leftId, PreprocessSpec.Center),
         BlockPreprocessSpec(
           rightId,
-          PreprocessSpec.scale(Vector(2.0)).toOption.get
+          PreprocessSpec.multiplyColumns(Vector(2.0)).toOption.get
         )
       )
     )

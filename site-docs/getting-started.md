@@ -28,7 +28,7 @@ Rows are observations. Columns are variables.
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.spectral.Pca
+import multivar.analysis.*
 
 val data = Matrix(6, 3)(
   2.5, 2.4,  0.5,
@@ -56,9 +56,9 @@ Read a field with `map` when no later operation can fail:
 val scoreShape = result.map(pca => (pca.scores.rows, pca.scores.cols))
 ```
 
-Use a `for` expression when the next operation also returns `Either`. Projection
-checks that the new matrix has the same number of columns as the training
-matrix, then applies the fitted centering and loadings.
+Use a `for` expression when the next operation also returns `Either`.
+`transform` checks that the new matrix has the same number of columns as the
+training matrix, then applies the fitted centering and loadings.
 
 ```scala mdoc:silent
 val newData = Matrix(2, 3)(
@@ -69,7 +69,7 @@ val newData = Matrix(2, 3)(
 val newScores =
   for
     pca <- result
-    scores <- pca.project(newData)
+    scores <- pca.transform(newData)
   yield scores
 ```
 

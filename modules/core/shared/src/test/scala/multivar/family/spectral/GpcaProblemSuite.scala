@@ -83,7 +83,7 @@ class GpcaProblemSuite extends munit.FunSuite:
     val featureMetric = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(1.0, 2.0, 0.75))))
     val checked = ComponentCount.unsafe(2)
     val convenient = acceptedMv(
-      Gpca.fit(x, components = 2, rowMetric, featureMetric, PreprocessSpec.Pass)
+      Gpca.fit(x, components = 2, rowMetric, featureMetric, GpcaCentering.None)
     )
     val rows = MvSpace.of("gpca.test.rows", SpaceRole.Samples, x.rows).toOption.get
     val features = MvSpace.of("gpca.test.features", SpaceRole.Observed, x.cols).toOption.get
@@ -102,8 +102,70 @@ class GpcaProblemSuite extends munit.FunSuite:
 
     assertVector(convenient.eigenvalues, canonical.generalizedEigenvalues.copyData.toVector, 0.0)
     assertVector(convenient.singularValues, canonical.singularValues.copyData.toVector, 0.0)
-    assertMatrix(convenient.project(x).toOption.get, convenient.scores, 0.0)
-    assert(Gpca.fit(x, components = 0, rowMetric, featureMetric).isLeft)
+    assertMatrix(convenient.transform(x).toOption.get, convenient.scores, 0.0)
+    assert(Gpca.fit(x, components = 0, rowMetric, featureMetric, GpcaCentering.None).isLeft)
+
+  test("dense GPCA Auto centers under an identity row metric and rejects nonuniform Auto"):
+    val x = GaleNumerics.matrixFromRows(
+      Seq(Seq(1.0, 2.0), Seq(3.0, 4.0), Seq(5.0, 6.0))
+    )
+    val identity = acceptedMv(MetricSpec.identity(3))
+    val features = acceptedMv(MetricSpec.identity(2))
+    val auto = acceptedMv(Gpca.fit(x, components = 1, identity, features))
+    val ordinary = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.Ordinary))
+    assertMatrix(auto.scores, ordinary.scores, 0.0)
+    assert(auto.center.isDefined)
+
+    val weighted = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(1.0, 2.0, 1.0))))
+    Gpca.fit(x, components = 1, weighted, features, GpcaCentering.Auto) match
+      case Left(MultivarError.InvalidRowGeometry(_)) => ()
+      case other => fail(s"expected Auto rejection for nonuniform row metric, got $other")
+
+  test("dense GPCA centering policies agree under identity and reject invalid measures"):
+    val x = GaleNumerics.matrixFromRows(
+      Seq(Seq(1.0, 2.0), Seq(3.0, 4.0), Seq(5.0, 6.0), Seq(7.0, 8.0))
+    )
+    val identity = acceptedMv(MetricSpec.identity(4))
+    val features = acceptedMv(MetricSpec.identity(2))
+    val ordinary = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.Ordinary))
+    val byMeasure = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.ByRowMeasure))
+    val orthogonal = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.OrthogonalToConstant))
+    val already = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.AlreadyCentered))
+    val none = acceptedMv(Gpca.fit(x, components = 1, identity, features, GpcaCentering.None))
+
+    assertMatrix(ordinary.scores, byMeasure.scores, 1e-12)
+    assertMatrix(ordinary.scores, orthogonal.scores, 1e-12)
+    assert(ordinary.center.isDefined)
+    assertEquals(already.center, None)
+    assertEquals(none.center, None)
+    assertMatrix(already.scores, none.scores, 0.0)
+
+    val diagonal = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(1.0, 2.0, 1.0, 0.5))))
+    val weighted = acceptedMv(Gpca.fit(x, components = 1, diagonal, features, GpcaCentering.ByRowMeasure))
+    assert(weighted.center.isDefined)
+    assert(weighted.eigenvalues(0).isFinite)
+
+    val zeroMass = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(0.0, 0.0, 0.0, 0.0))))
+    Gpca.fit(x, components = 1, zeroMass, features, GpcaCentering.ByRowMeasure) match
+      case Left(MultivarError.InvalidRowGeometry(_)) => ()
+      case other => fail(s"expected zero-mass row measure rejection, got $other")
+
+    val denseRow = acceptedMv(
+      MetricSpec.denseSymmetric(
+        GaleNumerics.matrixFromRows(
+          Seq(
+            Seq(2.0, 0.1, 0.0, 0.0),
+            Seq(0.1, 1.5, 0.0, 0.0),
+            Seq(0.0, 0.0, 1.0, 0.0),
+            Seq(0.0, 0.0, 0.0, 0.75)
+          )
+        )
+      )
+    )
+    assert(Gpca.fit(x, components = 1, denseRow, features, GpcaCentering.OrthogonalToConstant).isRight)
+    Gpca.fit(x, components = 1, denseRow, features, GpcaCentering.ByRowMeasure) match
+      case Left(MultivarError.InvalidRowGeometry(_)) => ()
+      case other => fail(s"expected ByRowMeasure rejection for dense SPD metric, got $other")
 
   test("semantic GPCA executes the operator program and matches the R generalized spectrum"):
     val x = GaleNumerics.matrixFromRows(R.g3X)

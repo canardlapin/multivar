@@ -25,7 +25,7 @@ Use `map` when only a successful field is needed:
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.spectral.Pca
+import multivar.analysis.*
 
 val x = Matrix(3, 2)(
   1.0, 0.0,
@@ -46,7 +46,7 @@ Use `for` when the next operation can fail:
 val projected =
   for
     fit <- Pca.fit(x, 1)
-    scores <- fit.project(x)
+    scores <- fit.transform(x)
   yield scores
 ```
 

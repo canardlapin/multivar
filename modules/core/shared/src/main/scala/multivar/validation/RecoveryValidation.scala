@@ -184,11 +184,11 @@ object FoldSafetyManifest:
     binding.component match
       case FoldFittedComponent.Offsets =>
         spec.preprocessing match
-          case PreprocessSpec.Center | PreprocessSpec.Standardize => Right(())
+          case PreprocessSpec.Center | PreprocessSpec.Standardize(_) => Right(())
           case other => Left(RecoveryValidationError.LifecycleMismatch(binding.component, s"$other does not fit offsets"))
       case FoldFittedComponent.Scaling =>
         spec.preprocessing match
-          case PreprocessSpec.Standardize => Right(())
+          case PreprocessSpec.Standardize(_) => Right(())
           case other =>
             Left(
               RecoveryValidationError.LifecycleMismatch(

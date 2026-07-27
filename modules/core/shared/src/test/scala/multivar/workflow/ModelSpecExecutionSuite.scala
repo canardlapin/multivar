@@ -156,7 +156,7 @@ class ModelSpecExecutionSuite extends munit.FunSuite:
     val spec = accepted(
       ModelSpec.from(
         ModelSpecId.unsafe(s"execution-${solver.artifact}"),
-        PreprocessSpec.Standardize,
+        PreprocessSpec.Standardize(),
         MissingnessPolicy.RejectNonFinite,
         plans,
         candidates,

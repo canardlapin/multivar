@@ -465,7 +465,7 @@ class ModelSpecSuite extends munit.FunSuite:
     val spec = accepted(
       ModelSpec.from(
         ModelSpecId.unsafe("gpca-nested"),
-        PreprocessSpec.Standardize,
+        PreprocessSpec.Standardize(),
         MissingnessPolicy.RejectNonFinite,
         plans,
         candidates,
@@ -487,7 +487,7 @@ class ModelSpecSuite extends munit.FunSuite:
   ): Double =
     val training = accepted(study.subset(fold.training))
     val validation = accepted(study.subset(fold.validation))
-    val preprocessor = acceptedMultivar(PreprocessSpec.Standardize.fit(training.values))
+    val preprocessor = acceptedMultivar(PreprocessSpec.Standardize().fit(training.values))
     val processedTraining = acceptedMultivar(preprocessor.transform(training.values))
     val processedValidation = acceptedMultivar(preprocessor.transform(validation.values))
     val denseTraining = acceptedMultivar(processedTraining.toDense(StoragePolicy.AllowDense))

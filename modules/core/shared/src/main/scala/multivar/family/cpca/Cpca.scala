@@ -145,6 +145,7 @@ final case class CpcaEstimatorSpec(
     blocks: Vector[CpcaBlock] = Vector(CpcaBlock.GxH),
     rankByBlock: Map[CpcaBlock, ComponentCount] = Map.empty,
     defaultComponents: Option[ComponentCount] = None,
+    preprocessing: PreprocessSpec = PreprocessSpec.Center,
     rowMetric: Option[MetricSpec] = None,
     columnMetric: Option[MetricSpec] = None,
     rowConstraint: CpcaConstraint = CpcaConstraint.Identity,
@@ -277,7 +278,8 @@ final case class CpcaBlockResult private[multivar] (
   def reconstructWhitened(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
     reconstruct(uStar, vStar, components)
 
-  def reconstructOriginal(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
+  /** Reconstruction in the original metric coordinates (before internal whitening). */
+  def reconstructMetric(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
     reconstruct(u, v, components)
 
   private def reconstruct(
@@ -325,19 +327,38 @@ private[multivar] object CpcaMath:
   *
   * The complete constrained block (`GxH`) is exposed directly; the underlying
   * partitioned operator fit remains available for diagnostics and provenance.
+  *
+  * Reconstruction vocabulary:
+  * - [[reconstructWorking]] — metric coordinates of the preprocessed table
+  * - [[reconstruct]] — original feature coordinates after inverse preprocessing
+  * - block [[CpcaBlockResult.reconstructWhitened]] / [[CpcaBlockResult.reconstructMetric]]
+  *   distinguish whitened versus metric coordinates inside the working space
   */
-final case class CpcaFit(
-    block: CpcaBlockResult,
-    result: PreparedCpcaOperatorFit
+final class CpcaFit private[multivar] (
+    private val blockResult: CpcaBlockResult,
+    private val operator: PreparedCpcaOperatorFit,
+    private val preprocessor: FittedInvertiblePreprocessor
 ):
-  def scores: DMat = block.scores
+  def scores: DMat = blockResult.scores
 
-  def loadings: DMat = block.v
+  def loadings: DMat = blockResult.v
 
-  def singularValues: DVec = block.singularValues
+  def singularValues: DVec = blockResult.singularValues
 
-  def reconstruct: Either[MultivarError, DMat] =
-    block.reconstructOriginal()
+  /** Reconstruction in the preprocessed (working) feature space. */
+  def reconstructWorking(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
+    blockResult.reconstructMetric(components)
+
+  /** Reconstruction in original feature coordinates. */
+  def reconstruct(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
+    reconstructWorking(components).flatMap { working =>
+      preprocessor.inverseTransform(MatrixView.dense(working)).flatMap(_.toDense(StoragePolicy.AllowDense))
+    }
+
+object CpcaFit:
+  private[multivar] def blockOf(fit: CpcaFit): CpcaBlockResult = fit.blockResult
+  private[multivar] def operatorOf(fit: CpcaFit): PreparedCpcaOperatorFit = fit.operator
+  private[multivar] def preprocessorOf(fit: CpcaFit): FittedInvertiblePreprocessor = fit.preprocessor
 
 object Cpca:
   /** Fit the complete constrained block selected by row and feature designs. */
@@ -345,7 +366,8 @@ object Cpca:
       input: DMat,
       rowDesign: DMat,
       featureDesign: DMat,
-      components: Int
+      components: Int,
+      preprocessing: PreprocessSpec = PreprocessSpec.Center
   ): Either[MultivarError, CpcaFit] =
     for
       fitted <- fitBlocks(
@@ -353,12 +375,14 @@ object Cpca:
         rowDesign,
         featureDesign,
         components,
-        Vector(CpcaBlock.GxH)
+        Vector(CpcaBlock.GxH),
+        preprocessing
       )
       block <- fitted
         .block(CpcaBlock.GxH)
         .toRight(MultivarError.SolverFailed("CPCA fit omitted its requested GxH block"))
-    yield CpcaFit(block, fitted)
+      preprocessor <- preprocessing.fitInvertible(MatrixView.dense(input))
+    yield new CpcaFit(block, fitted, preprocessor)
 
   /** Fit an explicit subset of the four CPCA blocks with one rank request. */
   def fitBlocks(
@@ -366,15 +390,19 @@ object Cpca:
       rowDesign: DMat,
       featureDesign: DMat,
       components: Int,
-      blocks: Iterable[CpcaBlock]
+      blocks: Iterable[CpcaBlock],
+      preprocessing: PreprocessSpec = PreprocessSpec.Center
   ): Either[MultivarError, PreparedCpcaOperatorFit] =
     for
       checked <- ComponentCount(components)
       request <- CpcaBlockRequest.from(blocks, defaultComponents = Some(checked))
+      fitted <- preprocessing.fit(MatrixView.dense(input))
+      prepared <- fitted.transform(MatrixView.dense(input))
+      dense <- prepared.toDense(StoragePolicy.AllowDense)
       rows <- MvSpace.of("cpca.rows", SpaceRole.Samples, input.rows)
       features <- MvSpace.of("cpca.features", SpaceRole.Observed, input.cols)
       problem <- CpcaOperatorProblem.fromMatrices(
-        MatrixView.dense(input),
+        MatrixView.dense(dense),
         None,
         None,
         CpcaConstraint.Basis(rowDesign),

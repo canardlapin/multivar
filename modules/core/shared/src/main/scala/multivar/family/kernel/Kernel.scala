@@ -155,20 +155,83 @@ final case class LandmarkSet private (indices: Vector[Int]):
     indices.length
 
 object LandmarkSet:
+  /** Build a landmark set, rejecting duplicates and out-of-range indices.
+    *
+    * Order is preserved. Call [[canonicalize]] when a sorted unique request is
+    * intended rather than an error.
+    */
   def from(indices: Iterable[Int], rows: Int): Either[MultivarError, LandmarkSet] =
-    val canonical = indices.toVector.distinct.sorted
     if rows <= 0 then Left(MultivarError.InvalidDimension("landmark row count", rows))
-    else if canonical.isEmpty then Left(MultivarError.EmptyIndexSet(IndexAxis.Row))
     else
-      var i = 0
-      var error = Option.empty[MultivarError]
-      while i < canonical.length && error.isEmpty do
-        val index = canonical(i)
-        if index < 0 || index >= rows then error = Some(MultivarError.IndexOutOfBounds(IndexAxis.Row, index, rows))
-        i += 1
-      error match
-        case Some(value) => Left(value)
-        case None        => Right(new LandmarkSet(canonical))
+      val vector = indices.toVector
+      if vector.isEmpty then Left(MultivarError.EmptyIndexSet(IndexAxis.Row))
+      else
+        val seen = scala.collection.mutable.HashSet.empty[Int]
+        var i = 0
+        var error = Option.empty[MultivarError]
+        while i < vector.length && error.isEmpty do
+          val index = vector(i)
+          if index < 0 || index >= rows then error = Some(MultivarError.IndexOutOfBounds(IndexAxis.Row, index, rows))
+          else if !seen.add(index) then error = Some(MultivarError.DuplicateIndex(IndexAxis.Row, index))
+          i += 1
+        error match
+          case Some(value) => Left(value)
+          case None        => Right(new LandmarkSet(vector))
+
+  /** Explicitly sort and deduplicate before validation. */
+  def canonicalize(indices: Iterable[Int], rows: Int): Either[MultivarError, LandmarkSet] =
+    from(indices.toVector.distinct.sorted, rows)
+
+/** Policy for square kernel matrices that may fail exact symmetry under floating point. */
+enum KernelSymmetryPolicy:
+  /** Reject any asymmetry larger than machine noise relative to entry magnitude. */
+  case Require(tolerance: Double = 1e-12)
+
+  /** Symmetrize when max |K_ij - K_ji| is within `tolerance`; otherwise reject. */
+  case SymmetrizeWithin(tolerance: Double = 1e-10)
+
+  /** Always replace K with (K + Kᵀ) / 2 without measuring. */
+  case SymmetrizeUnchecked
+
+  def prepare(matrix: DMat): Either[MultivarError, DMat] =
+    this match
+      case SymmetrizeUnchecked =>
+        Right(MatrixOps.symmetrize(matrix))
+      case Require(tolerance) =>
+        maxAsymmetry(matrix) match
+          case (row, col, left, right, delta) if delta > tolerance * (1.0 + Math.max(Math.abs(left), Math.abs(right))) =>
+            Left(MultivarError.NonSymmetricMatrix(row, col, left, right))
+          case _ =>
+            Right(matrix)
+      case SymmetrizeWithin(tolerance) =>
+        maxAsymmetry(matrix) match
+          case (row, col, left, right, delta) if delta > tolerance =>
+            Left(MultivarError.NonSymmetricMatrix(row, col, left, right))
+          case _ =>
+            Right(MatrixOps.symmetrize(matrix))
+
+  private def maxAsymmetry(matrix: DMat): (Int, Int, Double, Double, Double) =
+    var bestRow = 0
+    var bestCol = 0
+    var bestLeft = 0.0
+    var bestRight = 0.0
+    var bestDelta = 0.0
+    var row = 0
+    while row < matrix.rows do
+      var col = row + 1
+      while col < matrix.cols do
+        val left = matrix(row, col)
+        val right = matrix(col, row)
+        val delta = Math.abs(left - right)
+        if delta > bestDelta then
+          bestDelta = delta
+          bestRow = row
+          bestCol = col
+          bestLeft = left
+          bestRight = right
+        col += 1
+      row += 1
+    (bestRow, bestCol, bestLeft, bestRight, bestDelta)
 
 final case class KernelEigenArtifact(
     eigenvectors: DMat,
@@ -289,29 +352,32 @@ final class NystromOperatorFit private[multivar] (
         scoreValues <- OperatorFitAdapters.semantic(scoreOperator.toDense)
       yield KernelScoreTransform(extension, scoreOperator, scoreValues)
 
-final case class NystromFit(
-    kernel: KernelSpec,
-    method: NystromMethod,
-    landmarks: LandmarkSet,
-    landmarkData: DMat,
-    preprocessor: FittedPreprocessor,
-    originalCols: Int,
-    centering: KernelCentering,
-    normalization: KernelNormalization,
-    eigen: KernelEigenArtifact,
-    diagnostics: NystromDiagnostics,
-    state: NystromState,
-    kernelFunction: Kernel,
-    operatorFit: NystromOperatorFit
+final class NystromFit private[multivar] (
+    private val kernel: KernelSpec,
+    private val method: NystromMethod,
+    private val landmarks: LandmarkSet,
+    private val landmarkData: DMat,
+    private val preprocessor: FittedPreprocessor,
+    private val originalCols: Int,
+    private val centering: KernelCentering,
+    private val normalization: KernelNormalization,
+    private val eigen: KernelEigenArtifact,
+    val diagnostics: NystromDiagnostics,
+    private val state: NystromState,
+    private val kernelFunction: Kernel,
+    private val operatorFit: NystromOperatorFit
 ):
-  require(landmarkData.rows == landmarks.length, "landmark data rows must match landmarks")
-  require(originalCols > 0, "Nyström original feature count must be positive")
-
   def scores: DMat =
     eigen.scores
 
   def eigenvalues: DVec =
     eigen.eigenvalues
+
+  def requestedComponents: Int =
+    diagnostics.requestedComponents.value
+
+  def effectiveComponents: Int =
+    diagnostics.effectiveComponents
 
   def transform(newData: DMat): Either[MultivarError, DMat] =
     transform(MatrixView.dense(newData))
@@ -325,10 +391,20 @@ final case class NystromFit(
         kNew <- Nystrom.computeKernel(kernelFunction, processed, MatrixView.dense(landmarkData), "Nyström out-of-sample kernel")
       yield GaleNumerics.multiply(kNew, state.scoreWeights)
 
-  def transformTyped[Rows <: SemanticSpace, Features <: SemanticSpace](
-      newData: KernelInput[Rows, Features]
-  ): Either[MultivarError, KernelScoreTransform[Rows, operatorFit.landmarkSpace.Id, operatorFit.componentSpace.Id]] =
-    operatorFit.transform(newData, preprocessor, kernelFunction)
+object NystromFit:
+  private[multivar] def landmarksOf(fit: NystromFit): LandmarkSet = fit.landmarks
+  private[multivar] def operatorOf(fit: NystromFit): NystromOperatorFit = fit.operatorFit
+  private[multivar] def stateOf(fit: NystromFit): NystromState = fit.state
+  private[multivar] def preprocessorOf(fit: NystromFit): FittedPreprocessor = fit.preprocessor
+  private[multivar] def centeringOf(fit: NystromFit): KernelCentering = fit.centering
+  private[multivar] def eigenOf(fit: NystromFit): KernelEigenArtifact = fit.eigen
+  private[multivar] def kernelOf(fit: NystromFit): Kernel = fit.kernelFunction
+  private[multivar] def landmarkDataOf(fit: NystromFit): DMat = fit.landmarkData
+  private[multivar] def methodOf(fit: NystromFit): NystromMethod = fit.method
+  private[multivar] def kernelSpecOf(fit: NystromFit): KernelSpec = fit.kernel
+  private[multivar] def originalColsOf(fit: NystromFit): Int = fit.originalCols
+  private[multivar] def normalizationOf(fit: NystromFit): KernelNormalization = fit.normalization
+
 
 object Nystrom:
   def fit(
@@ -381,7 +457,8 @@ object Nystrom:
       preproc: PreprocessSpec = PreprocessSpec.Pass,
       method: NystromMethod = NystromMethod.Standard,
       eigenSolver: SymmetricEigenSolver = DenseSolvers.symmetricEigen,
-      tolerance: Double = 1e-12
+      tolerance: Double = 1e-12,
+      symmetry: KernelSymmetryPolicy = KernelSymmetryPolicy.SymmetrizeWithin()
   ): Either[MultivarError, NystromFit] =
     if input.rows <= 0 then Left(MultivarError.InvalidDimension("Nyström input rows", input.rows))
     else if input.cols <= 0 then Left(MultivarError.InvalidDimension("Nyström input columns", input.cols))
@@ -396,7 +473,7 @@ object Nystrom:
           ValueIdentity.source(ValueId.unsafe("nystrom.raw.input")),
           SemanticProvenance.source("raw-nystrom-compatibility-input")
         )
-        fit <- fitTyped(typed, components, landmarks, kernel, preproc, method, eigenSolver, tolerance)
+        fit <- fitTyped(typed, components, landmarks, kernel, preproc, method, eigenSolver, tolerance, symmetry)
       yield fit
 
   def fitTyped[Rows <: SemanticSpace, Features <: SemanticSpace](
@@ -407,7 +484,8 @@ object Nystrom:
       preproc: PreprocessSpec = PreprocessSpec.Pass,
       method: NystromMethod = NystromMethod.Standard,
       eigenSolver: SymmetricEigenSolver = DenseSolvers.symmetricEigen,
-      tolerance: Double = 1e-12
+      tolerance: Double = 1e-12,
+      symmetry: KernelSymmetryPolicy = KernelSymmetryPolicy.SymmetrizeWithin()
   ): Either[MultivarError, NystromFit] =
     if !tolerance.isFinite || tolerance < 0.0 then
       Left(MultivarError.InvalidTolerance("Nyström spectral tolerance", tolerance))
@@ -423,10 +501,8 @@ object Nystrom:
         _ <- MatrixOps.checkFinite("Nyström input", processed)
         landmarkData = RowGeometryOps.selectRows(processed, landmarkSet.indices)
         landmarkView = MatrixView.dense(landmarkData)
-        // Kernel is an open trait; symmetrize the square landmark kernel so a user
-        // kernel with roundoff asymmetry does not fail the symmetric eigensolver.
         kMmRaw <- computeKernel(kernel, landmarkView, landmarkView, "Nyström landmark kernel")
-        kMm = MatrixOps.symmetrize(kMmRaw)
+        kMm <- symmetry.prepare(kMmRaw)
         // The n x m kernel is computed exactly once and shared by every stage.
         cAll <- computeKernel(kernel, MatrixView.dense(processed), landmarkView, "Nyström all-landmark kernel")
         fit <- method match

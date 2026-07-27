@@ -4,6 +4,7 @@ package family.cpca
 import multivar.core.*
 import multivar.family.spectral.*
 import multivar.family.cpca.*
+import multivar.advanced.svdResult
 
 import scala.compiletime.testing.typeCheckErrors
 
@@ -70,14 +71,58 @@ class CpcaOperatorProblemSuite extends munit.FunSuite:
         Vector(0.0, 1.0)
       )
     )
-    val convenient = Cpca.fit(x, rowDesign, featureDesign, components = 2).toOption.get
+    val convenient = Cpca.fit(x, rowDesign, featureDesign, components = 2, preprocessing = PreprocessSpec.Pass).toOption.get
 
-    assertEquals(convenient.block.block, CpcaBlock.GxH)
+    assertEquals(CpcaFit.blockOf(convenient).block, CpcaBlock.GxH)
     assertEquals(convenient.scores.rows, x.rows)
     assertEquals(convenient.loadings.rows, x.cols)
     assertEquals(convenient.singularValues.length, 2)
-    assertMatrixClose(convenient.reconstruct.toOption.get, convenient.block.reconstructOriginal().toOption.get, 0.0)
+    assertMatrixClose(
+      convenient.reconstructWorking().toOption.get,
+      CpcaFit.blockOf(convenient).reconstructMetric().toOption.get,
+      0.0
+    )
     assert(Cpca.fit(x, rowDesign, featureDesign, components = 0).isLeft)
+
+  test("CPCA reconstruct restores original coordinates through invertible preprocessing"):
+    val x = matrix(
+      Vector(
+        Vector(3.0, 9.0, 1.0),
+        Vector(1.0, 7.0, 4.0),
+        Vector(8.0, 2.0, 6.0),
+        Vector(5.0, 3.0, 2.0)
+      )
+    )
+    val rowDesign = matrix(
+      Vector(
+        Vector(1.0, 0.0),
+        Vector(0.0, 1.0),
+        Vector(0.0, 0.0),
+        Vector(0.0, 0.0)
+      )
+    )
+    val featureDesign = matrix(
+      Vector(
+        Vector(1.0, 0.0),
+        Vector(0.0, 0.0),
+        Vector(0.0, 1.0)
+      )
+    )
+    val fit = Cpca.fit(x, rowDesign, featureDesign, components = 2, preprocessing = PreprocessSpec.Standardize()).toOption.get
+    val working = fit.reconstructWorking().toOption.get
+    val original = fit.reconstruct().toOption.get
+    val restored = CpcaFit
+      .preprocessorOf(fit)
+      .inverseTransform(MatrixView.dense(working))
+      .flatMap(_.toDense())
+      .toOption
+      .get
+    assertMatrixClose(original, restored, 1e-10)
+
+    val collapsing = PreprocessSpec.multiplyColumns(Vector(1.0, 0.0, 1.0)).toOption.get
+    Cpca.fit(x, rowDesign, featureDesign, components = 1, preprocessing = collapsing) match
+      case Left(MultivarError.NonInvertibleValue(_, _, _)) => ()
+      case other => fail(s"expected non-invertible CPCA preprocessing rejected at fit, got $other")
 
   test("CPCA block programs report the same complete block as a direct projector oracle"):
     val x = matrix(
@@ -262,7 +307,7 @@ class CpcaOperatorProblemSuite extends munit.FunSuite:
     val fit = problem.fit(request).toOption.get
     val svd = Svd.fit(MatrixView.dense(x), ComponentCount.unsafe(3)).toOption.get
 
-    assertVectorClose(fit.block(CpcaBlock.GxH).get.singularValues, svd.result.singularValues, 1e-10)
+    assertVectorClose(fit.block(CpcaBlock.GxH).get.singularValues, svd.svdResult.singularValues, 1e-10)
     assertEqualsDouble(fit.partition.inertia(CpcaBlock.GxH).get.ss, squaredNorm(x), 1e-10)
     assertEquals(fit.block(CpcaBlock.G0xH).map(_.rank), Some(0))
     assertEquals(fit.block(CpcaBlock.GxH0).map(_.rank), Some(0))

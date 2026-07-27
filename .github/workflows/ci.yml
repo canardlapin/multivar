@@ -21,9 +21,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes ripgrep
+      - name: Publish pinned Gale for Maven resolution
+        run: ./tools/publish-gale-local.sh
       - name: Compile and test JVM plus Scala.js
         run: |
           ./tools/check-boundary.sh
           sbt compileAll testAll
+      - name: Check the ordinary public API surface
+        run: ./tools/public-surface.sh --check
+      - name: Binary compatibility gate
+        run: sbt mimaCheck
       - name: Compile API docs and executable guides
         run: sbt docsCheck
+      - name: Consumer smoke against publishedLocal artifacts
+        run: sbt smokeCheck

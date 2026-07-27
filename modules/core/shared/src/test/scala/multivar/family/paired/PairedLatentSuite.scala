@@ -4,6 +4,7 @@ package family.paired
 import multivar.core.*
 import multivar.family.paired.*
 import multivar.workflow.*
+import multivar.advanced.*
 
 import gale.linalg.DMat
 import gale.linalg.DVec
@@ -11,6 +12,10 @@ import gale.linalg.DVec
 class PairedLatentSuite extends munit.FunSuite:
 
   import PairedLatentRReferenceFixtures as R
+
+  private def plscOp(fit: PlscFit) = PlscFit.operatorOf(fit)
+  private def ccaOp(fit: CcaFit) = CcaFit.operatorOf(fit)
+  private def rrrOp(fit: ReducedRankRegressionFit) = ReducedRankRegressionFit.operatorOf(fit)
 
   private final case class CanonicalPaired(
       xWeights: DMat,
@@ -125,16 +130,17 @@ class PairedLatentSuite extends munit.FunSuite:
     val estimators = Vector[PairedMultivarEstimator](
       PairedMultivarEstimator.Plsc(k(1)),
       PairedMultivarEstimator.Cca(k(1)),
-      PairedMultivarEstimator.ReducedRankRegression(k(1))
+      PairedMultivarEstimator.ReducedRankRegression(k(1)),
+      PairedMultivarEstimator.PlsRegression(k(1))
     )
 
-    def fitKind(estimator: PairedMultivarEstimator): Either[MultivarError, PairedProgramKind] =
+    def fitKind(estimator: PairedMultivarEstimator): Either[MultivarError, String] =
       estimator match
         case PairedMultivarEstimator.Plsc(components, xPreprocessing, yPreprocessing) =>
-          Plsc.fit(x, y, components, xPreprocessing, yPreprocessing).map(_.operator.diagnostics.kind)
+          Plsc.fit(x, y, components, xPreprocessing, yPreprocessing).map(fit => plscOp(fit).diagnostics.kind.label)
         case PairedMultivarEstimator.Cca(components, regularization, xPreprocessing, yPreprocessing) =>
           Cca.fitRegularized(x, y, components, regularization, xPreprocessing, yPreprocessing)
-            .map(_.operator.diagnostics.kind)
+            .map(fit => ccaOp(fit).diagnostics.kind.label)
         case PairedMultivarEstimator.ReducedRankRegression(
               components,
               regularization,
@@ -144,12 +150,17 @@ class PairedLatentSuite extends munit.FunSuite:
             ) =>
           ReducedRankRegression
             .fit(x, y, components, regularization, direction, xPreprocessing, yPreprocessing)
-            .map(_.operator.diagnostics.kind)
+            .map(fit => rrrOp(fit).diagnostics.kind.label)
+        case PairedMultivarEstimator.PlsRegression(components, algorithm, xPreprocessing, yPreprocessing) =>
+          PlsRegression
+            .fit(x, y, components, xPreprocessing, yPreprocessing, algorithm)
+            .map(fit => fit.diagnostics.algorithm.label)
+            .map(label => s"pls-$label")
 
     estimators.foreach { estimator =>
       val actual = fitKind(estimator)
       assert(actual.isRight, s"${estimator.label} should be executable, got $actual")
-      assertEquals(actual.toOption.get.label, estimator.label)
+      assertEquals(actual.toOption.get, estimator.label)
     }
   }
 
@@ -157,14 +168,14 @@ class PairedLatentSuite extends munit.FunSuite:
     val ref = R.plsc
     val fit = Plsc.fit(MatrixView.dense(ref.x), MatrixView.dense(ref.y), k(ref.components)).toOption.get
     val actual = canonicalize(
-      fit.operator.sourceWeights.toOption.get,
-      fit.operator.targetWeights.toOption.get,
+      plscOp(fit).sourceWeights.toOption.get,
+      plscOp(fit).targetWeights.toOption.get,
       fit.xScores,
       fit.yScores
     )
 
-    assertVectorClose(fit.result.singularValues, ref.singularValues, 1e-9)
-    assertEquals(fit.operator.diagnostics.kind, PairedProgramKind.Plsc)
+    assertVectorClose(fit.svdResult.singularValues, ref.singularValues, 1e-9)
+    assertEquals(plscOp(fit).diagnostics.kind, PairedProgramKind.Plsc)
     assertPairedReference(actual, ref, 1e-9)
   }
 
@@ -173,22 +184,56 @@ class PairedLatentSuite extends munit.FunSuite:
     val regularization = CcaRegularization.asymmetric(ref.xRidge, ref.yRidge).toOption.get
     val fit = Cca.fitRegularized(MatrixView.dense(ref.x), MatrixView.dense(ref.y), k(ref.components), regularization).toOption.get
     val actual = canonicalize(
-      fit.operator.sourceWeights.toOption.get,
-      fit.operator.targetWeights.toOption.get,
+      ccaOp(fit).sourceWeights.toOption.get,
+      ccaOp(fit).targetWeights.toOption.get,
       fit.xScores,
       fit.yScores
     )
 
-    assertVectorClose(fit.result.singularValues, ref.singularValues, 1e-9)
-    fit.operator.diagnostics.kind match
+    assertVectorClose(fit.svdResult.singularValues, ref.singularValues, 1e-9)
+    ccaOp(fit).diagnostics.kind match
       case PairedProgramKind.Cca(value) => assertEquals(value, regularization)
       case other                        => fail(s"expected CCA kind, got $other")
     assertPairedReference(actual, ref, 1e-9)
 
     val zeroRidge = CcaRegularization.asymmetric(0.0, 0.0).toOption.get
     val baseFit = Cca.fitRegularized(MatrixView.dense(ref.x), MatrixView.dense(ref.y), k(ref.components), zeroRidge).toOption.get
-    assertVectorClose(baseFit.result.singularValues, ref.baseCancorCorrelations.get, 1e-9)
+    assertVectorClose(baseFit.svdResult.singularValues, ref.baseCancorCorrelations.get, 1e-9)
   }
+
+  test("PLSC with Standardize matches Pass on hand-standardized inputs up to sign"):
+    val x = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(1.0, 2.0, 0.5),
+        Vector(2.0, 1.0, -0.5),
+        Vector(0.0, 3.0, 1.0),
+        Vector(-1.0, 0.5, 0.0),
+        Vector(3.0, -1.0, 2.0),
+        Vector(1.5, 0.0, -1.0)
+      )
+    )
+    val y = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(2.0, 1.0),
+        Vector(1.0, -1.0),
+        Vector(0.0, 3.0),
+        Vector(5.0, 2.0),
+        Vector(-1.0, 0.5),
+        Vector(0.5, 1.5)
+      )
+    )
+    val direct = Plsc.fit(x, y, 1, PreprocessSpec.Standardize(), PreprocessSpec.Standardize()).toOption.get
+    val xPre = PreprocessSpec.Standardize().fit(MatrixView.dense(x)).toOption.get
+    val yPre = PreprocessSpec.Standardize().fit(MatrixView.dense(y)).toOption.get
+    val xHat = xPre.transform(MatrixView.dense(x)).toOption.get.toDense().toOption.get
+    val yHat = yPre.transform(MatrixView.dense(y)).toOption.get.toDense().toOption.get
+    val viaPass = Plsc.fit(xHat, yHat, 1, PreprocessSpec.Pass, PreprocessSpec.Pass).toOption.get
+    val left = canonicalize(direct.xWeights, direct.yWeights, direct.xScores, direct.yScores)
+    val right = canonicalize(viaPass.xWeights, viaPass.yWeights, viaPass.xScores, viaPass.yScores)
+    assertMatrixClose(left.xWeights, right.xWeights, 1e-9)
+    assertMatrixClose(left.yWeights, right.yWeights, 1e-9)
+    assertMatrixClose(left.xScores, right.xScores, 1e-9)
+    assertMatrixClose(left.yScores, right.yScores, 1e-9)
 
   test("PLSC uses the shared row metric in the paired cross operator") {
     val x = GaleNumerics.matrixFromRows(
@@ -223,8 +268,8 @@ class PairedLatentSuite extends munit.FunSuite:
     )
     val expected = DenseSolvers.svd.decompose(MatrixView.dense(cross), k(2)).toOption.get
 
-    assertVectorClose(fit.result.singularValues, expected.singularValues, 1e-9)
-    assert(Math.abs(fit.result.singularValues(0) - unweighted.result.singularValues(0)) > 1e-3)
+    assertVectorClose(fit.svdResult.singularValues, expected.singularValues, 1e-9)
+    assert(Math.abs(fit.svdResult.singularValues(0) - unweighted.svdResult.singularValues(0)) > 1e-3)
   }
 
   test("CCA uses the shared row metric in covariance and cross-covariance operators") {
@@ -266,8 +311,8 @@ class PairedLatentSuite extends munit.FunSuite:
     val expectedOperator = GaleNumerics.multiply(GaleNumerics.multiply(wx, cxy), wy)
     val expected = DenseSolvers.svd.decompose(MatrixView.dense(expectedOperator), k(2)).toOption.get
 
-    assertVectorClose(fit.result.singularValues, expected.singularValues, 1e-9)
-    assert(Math.abs(fit.result.singularValues(1) - unweighted.result.singularValues(1)) > 1e-3)
+    assertVectorClose(fit.svdResult.singularValues, expected.singularValues, 1e-9)
+    assert(Math.abs(fit.svdResult.singularValues(1) - unweighted.svdResult.singularValues(1)) > 1e-3)
   }
 
   test("weighted PLSC matches an externally computed weighted cross-product SVD") {
@@ -330,10 +375,10 @@ class PairedLatentSuite extends munit.FunSuite:
     val cross = GaleNumerics.matrixFromRowMajor(x.cols, y.cols, crossData)
     val expected = DenseSolvers.svd.decompose(MatrixView.dense(cross), k(2)).toOption.get
 
-    assertVectorClose(fit.result.singularValues, expected.singularValues, 1e-9)
+    assertVectorClose(fit.svdResult.singularValues, expected.singularValues, 1e-9)
     val actual = canonicalize(
-      fit.operator.sourceWeights.toOption.get,
-      fit.operator.targetWeights.toOption.get,
+      plscOp(fit).sourceWeights.toOption.get,
+      plscOp(fit).targetWeights.toOption.get,
       fit.xScores,
       fit.yScores
     )
@@ -352,19 +397,108 @@ class PairedLatentSuite extends munit.FunSuite:
   test("RRR x-to-y matches the R reduced-rank regression fixture") {
     val ref = R.rrr
     val fit = ReducedRankRegression.fit(MatrixView.dense(ref.x), MatrixView.dense(ref.y), k(ref.components)).toOption.get
+    val source = ReducedRankRegressionFit.sourceOf(fit)
+    val target = ReducedRankRegressionFit.targetOf(fit)
     val actual = canonicalize(
-      fit.sourceTransform.frame.weights.toDense.toOption.get,
-      fit.targetTransform.frame.weights.toDense.toOption.get,
-      fit.sourceTransform.trainingValues,
-      fit.targetTransform.trainingValues
+      source.frame.weights.toDense.toOption.get,
+      target.frame.weights.toDense.toOption.get,
+      source.trainingValues,
+      target.trainingValues
     )
 
-    assertVectorClose(fit.operator.result.singularValues, ref.singularValues, 1e-9)
+    assertVectorClose(ReducedRankRegressionFit.operatorOf(fit).result.singularValues, ref.singularValues, 1e-9)
     assertPairedReference(actual, ref, 1e-9)
-    assertMatrixClose(fit.fullCoefficient, ref.fullCoefficient.get, 1e-9)
-    assertMatrixClose(fit.coefficientTransform.coefficient.toDense.toOption.get, ref.workingCoefficient.get, 1e-9)
+    assertMatrixClose(
+      ReducedRankRegressionFit.unconstrainedWorkingCoefficients(fit),
+      ref.fullCoefficient.get,
+      1e-9
+    )
+    assertMatrixClose(fit.workingCoefficients, ref.workingCoefficient.get, 1e-9)
     assertMatrixClose(fit.predictWorking(MatrixView.dense(ref.x)).toOption.get, ref.predictedWorking.get, 1e-9)
     assertMatrixClose(fit.predict(MatrixView.dense(ref.x)).toOption.get, ref.predicted.get, 1e-9)
+  }
+
+  test("RRR raw coefficients satisfy the original-coordinate prediction law under invertible affine preprocessing") {
+    val x = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(2.5, 2.4, 0.5),
+        Vector(0.5, 0.7, -0.1),
+        Vector(2.2, 2.9, 0.8),
+        Vector(1.9, 2.2, 0.3),
+        Vector(3.1, 3.0, 1.0),
+        Vector(1.2, 1.1, 0.0)
+      )
+    )
+    val y = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(1.0, 0.5),
+        Vector(0.2, -0.3),
+        Vector(1.1, 0.7),
+        Vector(0.8, 0.4),
+        Vector(1.4, 0.9),
+        Vector(0.3, -0.1)
+      )
+    )
+    val schemes = Vector(
+      (PreprocessSpec.Center, PreprocessSpec.Center),
+      (PreprocessSpec.Standardize(), PreprocessSpec.Standardize()),
+      (
+        PreprocessSpec.multiplyColumns(Vector(2.0, 0.5, 1.5)).toOption.get,
+        PreprocessSpec.multiplyColumns(Vector(3.0, 0.25)).toOption.get
+      )
+    )
+
+    schemes.foreach { case (xPre, yPre) =>
+      val fit = ReducedRankRegression
+        .fit(x, y, components = 2, RegressionRegularization.Ols, xPre, yPre)
+        .toOption
+        .get
+      val predicted = fit.predict(x).toOption.get
+      val fromRaw = applyRaw(x, fit.coefficients, fit.intercept)
+      assertMatrixClose(predicted, fromRaw, 1e-9)
+    }
+  }
+
+  private def applyRaw(x: DMat, coefficients: DMat, intercept: DVec): Vector[Vector[Double]] =
+    (0 until x.rows).map { row =>
+      (0 until coefficients.cols).map { col =>
+        var value = intercept(col)
+        var feature = 0
+        while feature < coefficients.rows do
+          value += x(row, feature) * coefficients(feature, col)
+          feature += 1
+        value
+      }.toVector
+    }.toVector
+
+  test("RRR rejects a response scale it could not undo when predicting") {
+    val ref = R.rrr
+    val collapsing =
+      PreprocessSpec.multiplyColumns(Vector.fill(ref.y.cols)(0.0)).toOption.get
+    val usable =
+      PreprocessSpec.multiplyColumns(Vector.fill(ref.y.cols)(2.0)).toOption.get
+
+    val rejected = ReducedRankRegression.fit(
+      ref.x,
+      ref.y,
+      ref.components,
+      RegressionRegularization.Ols,
+      PreprocessSpec.Center,
+      collapsing
+    )
+    rejected match
+      case Left(MultivarError.NonInvertibleValue("affine inverse scale", 0, 0.0)) => ()
+      case other => fail(s"expected the zero response scale to be rejected at fit time, got $other")
+
+    val accepted = ReducedRankRegression.fit(
+      ref.x,
+      ref.y,
+      ref.components,
+      RegressionRegularization.Ols,
+      PreprocessSpec.Center,
+      usable
+    )
+    assert(accepted.flatMap(_.predict(MatrixView.dense(ref.x))).isRight)
   }
 
   test("CCA regularization normalizes raw doubles through linalg ridge") {

@@ -698,8 +698,9 @@ object EffectOperator:
   ): Either[MultivarError, DMat] =
     val zero = DMat.zeros(processed.rows, processed.cols)
     for
-      original <- preprocessor.inverseTransform(MatrixView.dense(processed), policy = StoragePolicy.AllowDense)
-      originalZero <- preprocessor.inverseTransform(MatrixView.dense(zero), policy = StoragePolicy.AllowDense)
+      invertible <- preprocessor.requireInvertible
+      original <- invertible.inverseTransform(MatrixView.dense(processed), policy = StoragePolicy.AllowDense)
+      originalZero <- invertible.inverseTransform(MatrixView.dense(zero), policy = StoragePolicy.AllowDense)
       originalDense <- original.toDense(StoragePolicy.AllowDense)
       zeroDense <- originalZero.toDense(StoragePolicy.AllowDense)
     yield RowGeometryOps.subtract(originalDense, zeroDense)

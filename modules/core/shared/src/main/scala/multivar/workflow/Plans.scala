@@ -160,7 +160,7 @@ enum MultivarEstimator:
   case Svd(components: ComponentCount, preprocessing: PreprocessSpec = PreprocessSpec.Pass)
   case Gpca(
       components: ComponentCount,
-      preprocessing: PreprocessSpec = PreprocessSpec.Center,
+      centering: GpcaCentering = GpcaCentering.Auto,
       rowMetric: Option[MetricSpec] = None,
       columnMetric: Option[MetricSpec] = None,
       backend: GpcaBackend = GpcaBackend.Auto,
@@ -333,12 +333,19 @@ enum PairedMultivarEstimator:
       xPreprocessing: PreprocessSpec = PreprocessSpec.Center,
       yPreprocessing: PreprocessSpec = PreprocessSpec.Center
   )
+  case PlsRegression(
+      components: ComponentCount,
+      algorithm: PlsAlgorithm = PlsAlgorithm.Simpls,
+      xPreprocessing: PreprocessSpec = PreprocessSpec.Center,
+      yPreprocessing: PreprocessSpec = PreprocessSpec.Center
+  )
 
   def componentCount: ComponentCount =
     this match
       case Plsc(value, _, _)                       => value
       case Cca(value, _, _, _)                     => value
       case ReducedRankRegression(value, _, _, _, _) => value
+      case PlsRegression(value, _, _, _)           => value
 
   def method: PairedLatentMethod =
     this match
@@ -348,6 +355,8 @@ enum PairedMultivarEstimator:
         PairedLatentMethod.Cca(regularization)
       case ReducedRankRegression(_, regularization, direction, _, _) =>
         PairedLatentMethod.ReducedRankRegression(direction, regularization)
+      case PlsRegression(_, algorithm, _, _) =>
+        PairedLatentMethod.PlsRegression(algorithm)
 
   def label: String =
     method.label
@@ -379,7 +388,7 @@ object PairedMultivarPlan:
     for
       planId <- MultivarPlanId(id)
       _ <- validateWholeInputExecution(execution)
-      _ <- validateComponentRequest(estimator.componentCount, input)
+      _ <- validateComponentRequest(estimator, input)
     yield new PairedMultivarPlan(planId, input, estimator, featureScope, execution)
 
   private def validateWholeInputExecution(execution: MultivarExecutionPlan): Either[MultivarError, Unit] =
@@ -387,11 +396,17 @@ object PairedMultivarPlan:
     else Left(MultivarError.InvalidRowGeometry("paired multivar plans currently support whole-input execution only"))
 
   private def validateComponentRequest(
-      components: ComponentCount,
+      estimator: PairedMultivarEstimator,
       input: PairedSampleByFeatureInput
   ): Either[MultivarError, Unit] =
-    val limit = Math.min(input.sampleCount, Math.min(input.xFeatureCount, input.yFeatureCount))
-    if components.value > limit then Left(MultivarError.InvalidComponentRequest(components.value, limit))
+    val limit =
+      estimator match
+        case PairedMultivarEstimator.PlsRegression(_, _, _, _) =>
+          Math.min(input.sampleCount, input.xFeatureCount)
+        case _ =>
+          Math.min(input.sampleCount, Math.min(input.xFeatureCount, input.yFeatureCount))
+    if estimator.componentCount.value > limit then
+      Left(MultivarError.InvalidComponentRequest(estimator.componentCount.value, limit))
     else Right(())
 
 enum FitArtifactKind:
@@ -468,18 +483,18 @@ object LocalMultivarExecutor:
       case MultivarEstimator.Pca(components, preprocessing) =>
         Pca.fit(input, components, preprocessing).map { fit =>
           FitArtifact.FrameTransformArtifact(
-            shape(plan, roi, FitArtifactKind.Pca, input, fit.transform.componentSpace.descriptor.size),
-            fit.transform
+            shape(plan, roi, FitArtifactKind.Pca, input, PcaFit.coreOf(fit).frameTransform.componentSpace.descriptor.size),
+            PcaFit.coreOf(fit).frameTransform
           )
         }
       case MultivarEstimator.Svd(components, preprocessing) =>
         Svd.fit(input, components, preprocessing).map { fit =>
           FitArtifact.FrameTransformArtifact(
-            shape(plan, roi, FitArtifactKind.Svd, input, fit.transform.componentSpace.descriptor.size),
-            fit.transform
+            shape(plan, roi, FitArtifactKind.Svd, input, SvdFit.coreOf(fit).frameTransform.componentSpace.descriptor.size),
+            SvdFit.coreOf(fit).frameTransform
           )
         }
-      case MultivarEstimator.Gpca(components, preprocessing, rowMetric, columnMetric, backend, policy) =>
+      case MultivarEstimator.Gpca(components, centering, rowMetric, columnMetric, backend, policy) =>
         val rowSpace = MvSpace(plan.input.id, SpaceRole.Samples, plan.input.samples)
         val columnSpace = MvSpace(
           SpaceId.unsafe(s"${plan.input.id.value}.${roi.id.value}"),
@@ -487,14 +502,14 @@ object LocalMultivarExecutor:
           Dimension.unsafe(input.cols)
         )
         for
-          preprocessor <- preprocessing.fit(input)
-          transformed <- preprocessor.transform(input, policy = policy)
           rowGeometry <- rowMetric match
             case Some(value) => Right(value)
             case None        => MetricSpec.identity(input.rows, Some(rowSpace))
           featureGeometry <- columnMetric match
             case Some(value) => Right(value)
             case None        => MetricSpec.identity(input.cols, Some(columnSpace))
+          preprocessor <- Gpca.fitCentering(centering, rowGeometry, input)
+          transformed <- preprocessor.transform(input, policy = policy)
           tolerance <- GpcaRankTolerance.fromBackend(backend)
           problem <- DynamicGpcaProblem.from(
             transformed,
@@ -519,8 +534,10 @@ object LocalMultivarExecutor:
           Dimension.unsafe(input.cols)
         )
         for
+          preprocessor <- spec.preprocessing.fit(input)
+          transformed <- preprocessor.transform(input, policy = spec.storagePolicy)
           problem <- CpcaOperatorProblem.fromMatrices(
-            input,
+            transformed,
             spec.rowMetric,
             spec.columnMetric,
             spec.rowConstraint,
@@ -550,7 +567,7 @@ object LocalMultivarExecutor:
         for
           kernel <- PlanOps.kernelFromSpec(kernelSpec)
           fit <- Nystrom.fit(input, components, landmarks, kernel, preprocessing, method)
-        yield FitArtifact.KernelArtifact(shape(plan, roi, FitArtifactKind.Nystrom, input, fit.eigen.components), fit)
+        yield FitArtifact.KernelArtifact(shape(plan, roi, FitArtifactKind.Nystrom, input, fit.effectiveComponents), fit)
 
   private def cpcaComponentCount(fit: PreparedCpcaOperatorFit): Int =
     fit.blocks.valuesIterator.map(_.rank).sum

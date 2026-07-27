@@ -7,8 +7,8 @@ request will be stored, composed, or evaluated over sparse or lazy data.
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
+import multivar.analysis.*
 import multivar.core.{ComponentCount, MatrixView}
-import multivar.family.spectral.Pca
 
 val x = Matrix(4, 2)(
   1.0, 2.0,

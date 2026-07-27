@@ -5,6 +5,7 @@ import multivar.core.*
 import multivar.contract.*
 import multivar.optimization.*
 import multivar.family.paired.*
+import multivar.advanced.svdResult
 
 import scala.compiletime.testing.typeCheckErrors
 
@@ -66,16 +67,16 @@ class PairedOperatorProblemSuite extends munit.FunSuite:
         ComponentCount.unsafe(plscReference.components)
       )
     )
-    assertEquals(plsc.operator.programFit.program.objective.label, "maximize-cross-trace")
+    assertEquals(PlscFit.operatorOf(plsc).programFit.program.objective.label, "maximize-cross-trace")
     assertEquals(
-      plsc.operator.programFit.program.resultSemantics.requestedClaim,
+      PlscFit.operatorOf(plsc).programFit.program.resultSemantics.requestedClaim,
       RequestedOptimizationClaim.ExactGlobal
     )
     assertEquals(
-      plsc.operator.programFit.program.resultSemantics.equivalence,
+      PlscFit.operatorOf(plsc).programFit.program.resultSemantics.equivalence,
       ResultEquivalence.FrameEquivalent(FrameSymmetry.Orthogonal, CertificateTolerance.strict)
     )
-    assertEquals(plsc.operator.coefficient, None)
+    assertEquals(PlscFit.operatorOf(plsc).coefficient, None)
 
     val ccaReference = PairedLatentRReferenceFixtures.cca
     val cca = accepted(
@@ -86,9 +87,9 @@ class PairedOperatorProblemSuite extends munit.FunSuite:
         CcaRegularization.asymmetric(ccaReference.xRidge, ccaReference.yRidge).toOption.get
       )
     )
-    assertEquals(cca.operator.programFit.program.objective.label, "maximize-cross-trace")
-    assert(cca.operator.diagnostics.crossResidual < 1e-8)
-    assert(cca.operator.diagnostics.normalizationResidual < 1e-8)
+    assertEquals(CcaFit.operatorOf(cca).programFit.program.objective.label, "maximize-cross-trace")
+    assert(CcaFit.operatorOf(cca).diagnostics.crossResidual < 1e-8)
+    assert(CcaFit.operatorOf(cca).diagnostics.normalizationResidual < 1e-8)
 
     val rrrReference = PairedLatentRReferenceFixtures.rrr
     val rrr = accepted(
@@ -98,11 +99,19 @@ class PairedOperatorProblemSuite extends munit.FunSuite:
         ComponentCount.unsafe(rrrReference.components)
       )
     )
-    assertEquals(rrr.operator.programFit.program.objective.label, "sequential-cross-regression")
-    assert(rrr.operator.programFit.program.resultSemantics.equivalence.isInstanceOf[ResultEquivalence.PredictionEquivalent])
-    val coefficient = acceptedSemantic(rrr.operator.coefficient.get.toDense)
-    assertEquals(rrr.operator.coefficient.get.role.value, OperatorRole.Coefficient)
-    assertMatrix(coefficient, rrr.fullCoefficient, 1e-10)
+    assertEquals(ReducedRankRegressionFit.operatorOf(rrr).programFit.program.objective.label, "sequential-cross-regression")
+    assert(
+      ReducedRankRegressionFit
+        .operatorOf(rrr)
+        .programFit
+        .program
+        .resultSemantics
+        .equivalence
+        .isInstanceOf[ResultEquivalence.PredictionEquivalent]
+    )
+    val coefficient = acceptedSemantic(ReducedRankRegressionFit.operatorOf(rrr).coefficient.get.toDense)
+    assertEquals(ReducedRankRegressionFit.operatorOf(rrr).coefficient.get.role.value, OperatorRole.Coefficient)
+    assertMatrix(coefficient, ReducedRankRegressionFit.unconstrainedWorkingCoefficients(rrr), 1e-10)
 
   test("simultaneous row permutation preserves paired spectra"):
     val reference = PairedLatentRReferenceFixtures.plsc
@@ -121,7 +130,7 @@ class PairedOperatorProblemSuite extends munit.FunSuite:
         ComponentCount.unsafe(reference.components)
       )
     )
-    assertVector(original.result.singularValues, permuted.result.singularValues, 1e-10)
+    assertVector(original.svdResult.singularValues, permuted.svdResult.singularValues, 1e-10)
 
   test("PLSC obeys common scale and feature-sign transport laws"):
     val reference = PairedLatentRReferenceFixtures.plsc
@@ -140,10 +149,10 @@ class PairedOperatorProblemSuite extends munit.FunSuite:
       )
     )
     var component = 0
-    while component < original.result.singularValues.length do
+    while component < original.svdResult.singularValues.length do
       assertEqualsDouble(
-        transformed.result.singularValues(component),
-        6.0 * original.result.singularValues(component),
+        transformed.svdResult.singularValues(component),
+        6.0 * original.svdResult.singularValues(component),
         1e-9
       )
       component += 1

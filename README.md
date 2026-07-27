@@ -1,8 +1,9 @@
 # multivar
 
 Multivar is a Scala 3 library for multivariate analysis on the JVM and
-Scala.js. It provides familiar methods such as PCA, PLSC, CCA, and reduced-rank
-regression, together with generalized, sparse, kernel, and multiblock models.
+Scala.js. It provides familiar methods such as PCA, PLSC, CCA, reduced-rank
+regression, and PLS regression, together with generalized, sparse, kernel, and
+multiblock models.
 
 [Read the guide](https://canardlapin.github.io/multivar/) or begin with the
 short PCA example below.
@@ -14,8 +15,14 @@ named feature schemas also check feature identity.
 
 ## Status
 
-Multivar is in early development on the 0.1 line. It is not yet published to
-Maven Central. The source build uses Scala 3.7.4 and supports the JVM and
+Multivar is early-development research software on the 0.1 line. Its APIs,
+numerical behavior, and result types may change without a migration period.
+Use it for research and evaluation, and validate results independently before
+relying on them in consequential work.
+
+No release has been published to Maven Central. Development builds remain on
+the 0.1 line until the API and numerical contracts are stable enough for a
+tagged release. The source build uses Scala 3.7.4 and supports the JVM and
 Scala.js.
 
 The first release will publish two artifacts. JVM projects will use:
@@ -33,7 +40,7 @@ After cloning the repository, start `sbt coreJVM/console` and run:
 
 ```scala
 import gale.linalg.Matrix
-import multivar.family.spectral.Pca
+import multivar.analysis.*
 
 val data = Matrix(4, 3)(
   2.5, 2.4,  0.5,
@@ -61,18 +68,19 @@ analysis match
 ```
 
 `scores` contains the training observations in principal-component
-coordinates. There is no need to project the training matrix again. To score
-new observations, call `pca.project(newData)`; it applies the fitted centering
-and loadings.
+coordinates. There is no need to transform the training matrix again. To score
+new observations, call `pca.transform(newData)`; it applies the fitted centering
+and loadings. `pca.inverseTransform(scores)` maps component coordinates back to
+original feature coordinates, and `pca.reconstruct(newData)` composes the two.
+The fit also reports `explainedVariance`, `explainedVarianceRatio`, `center`,
+and `scale`.
 
 Use `PreprocessSpec.Pass` to leave the columns unchanged or
-`PreprocessSpec.Standardize` to scale them to unit sample variance:
+`PreprocessSpec.Standardize()` to scale them to unit sample variance:
 
 ```scala
-import multivar.core.PreprocessSpec
-
 val standardized =
-  Pca.fit(data, components = 2, preproc = PreprocessSpec.Standardize)
+  Pca.fit(data, components = 2, preproc = PreprocessSpec.Standardize())
 ```
 
 ## Analyses
@@ -81,8 +89,8 @@ val standardized =
 | --- | --- |
 | PCA and SVD | `Pca`, `Svd` |
 | Paired latent analysis | `Plsc`, `Cca` |
-| Directed prediction | `ReducedRankRegression` |
-| Linear discrimination | `Lda` |
+| Directed prediction | `ReducedRankRegression`, `PlsRegression` |
+| Linear discrimination | `FisherDiscriminant` |
 | Generalized geometry | `Gpca`, `Cpca` |
 | Kernel approximation | `Nystrom` |
 | Sparse and smooth factors | `RankOneStructuredFactorization` |
@@ -108,8 +116,8 @@ the failed condition.
 Fitted transformations retain their preprocessing and training schema. SVD,
 PCA, PLSC, CCA, LDA, and GPCA fits can score new observations. Nyström fits
 transform new observations through their stored landmarks. Reduced-rank
-regression fits predict responses. Reconstruction and nonlinear encoding remain
-separate fitted capabilities.
+regression and PLS regression fits predict responses. Reconstruction and
+nonlinear encoding remain separate fitted capabilities.
 
 Iterative models report the stopping reason and the guarantee achieved.
 Reaching an iteration limit does not become a convergence claim, and
@@ -130,6 +138,17 @@ storage, scheduling, and domain-specific adapters remain outside this library.
 
 ## Build
 
+Install the pinned Gale revision into the local Ivy repository before the
+first compile on a clean machine (CI does this automatically):
+
+```sh
+./tools/publish-gale-local.sh
+```
+
+Until Gale is published to Maven Central, that local install is what makes
+multivar's Maven `gale-core` coordinate resolve. After Gale ships, the same
+coordinate will resolve from Central and the script becomes optional.
+
 Run the complete JVM and Scala.js build with:
 
 ```sh
@@ -142,6 +161,17 @@ local documentation site with:
 ```sh
 sbt docsCheck
 ```
+
+Prove that publishedLocal artifacts resolve for a consumer that does not
+`dependsOn` the source modules:
+
+```sh
+sbt smokeCheck
+```
+
+Binary compatibility uses MiMa. There is no previous release yet, so
+`mimaPreviousArtifacts` is empty and `sbt mimaCheck` is a no-op until `0.1.0`
+ships; the Phase 0 public-surface snapshot covers the pre-release period.
 
 Numerical changes should include an analytic law, an adversarial case, or an
 independent reference result. See [CONTRIBUTING.md](CONTRIBUTING.md) before

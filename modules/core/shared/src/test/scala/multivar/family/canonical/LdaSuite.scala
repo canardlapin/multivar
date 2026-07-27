@@ -33,10 +33,17 @@ class LdaSuite extends munit.FunSuite:
   )
   private val rLabels = Vector(0, 0, 0, 1, 1, 1, 2, 2, 2)
 
-  test("dense LDA convenience preserves checked fitting and exposes scores"):
-    val convenient = accepted(Lda.fit(rFixture, rLabels, components = 2, ridge = 1e-8))
-    val incidence = accepted(ClassIncidence.hard(rLabels))
+  test("dense Fisher discriminant convenience preserves checked fitting and exposes scores"):
     val fraction = accepted(TraceRidgeFraction(1e-8))
+    val convenient = accepted(
+      FisherDiscriminant.fit(
+        rFixture,
+        rLabels,
+        components = 2,
+        withinRegularization = WithinScatterPolicy.FixedTraceScaledRidge(fraction)
+      )
+    )
+    val incidence = accepted(ClassIncidence.hard(rLabels))
     val canonicalProblem = accepted(
       LdaProblem.fromMatrix(
         rFixture,
@@ -47,11 +54,40 @@ class LdaSuite extends munit.FunSuite:
     val canonical = accepted(canonicalProblem.fit(ComponentCount.unsafe(2)))
 
     assertVector(convenient.criterionValues, canonical.criterionValues.copyData.toVector, 0.0)
-    assertMatrix(convenient.project(rFixture).toOption.get, convenient.scores, 0.0)
+    assertMatrix(convenient.transform(rFixture).toOption.get, convenient.scores, 0.0)
     assertEquals(convenient.weights.rows, rFixture.cols)
-    assert(Lda.fit(rFixture, rLabels, components = 2, ridge = 0.0).isRight)
-    assert(Lda.fit(rFixture, rLabels, components = 0).isLeft)
-    assert(Lda.fit(rFixture, rLabels, components = 2, ridge = -1.0).isLeft)
+    assert(
+      FisherDiscriminant
+        .fit(rFixture, rLabels, components = 2, withinRegularization = WithinScatterPolicy.RequirePositiveDefinite)
+        .isRight
+    )
+    assert(FisherDiscriminant.fit(rFixture, rLabels, components = 0).isLeft)
+    assert(TraceRidgeFraction(-1.0).isLeft)
+    assert(ClassIncidence.hard(Vector("a", "a", "b", "b")).isRight)
+
+  test("Fisher transform projects new rows and rejects feature mismatch"):
+    val fit = accepted(
+      FisherDiscriminant.fit(rFixture, rLabels, components = 2)
+    )
+    assertMatrix(fit.transform(rFixture).toOption.get, fit.scores, 0.0)
+    val newRows = GaleNumerics.matrixFromRows(
+      Seq(
+        Seq(2.1, 1.0, 0.1),
+        Seq(-1.1, 2.1, 0.9)
+      )
+    )
+    val projected = fit.transform(newRows).toOption.get
+    assertEquals(projected.rows, 2)
+    assertEquals(projected.cols, fit.weights.cols)
+    val expected = GaleNumerics.multiply(newRows, fit.weights)
+    assertMatrix(projected, expected, 1e-10)
+
+    fit.transform(GaleNumerics.matrixFromRows(Seq(Seq(1.0, 2.0)))) match
+      case Left(MultivarError.MatrixShapeMismatch(_)) => ()
+      case other => fail(s"expected feature mismatch, got $other")
+
+    assert(FisherDiscriminant.fit(rFixture, Vector.fill(rFixture.rows)(0), components = 1).isLeft)
+    assert(FisherDiscriminant.fit(rFixture, rLabels.take(3), components = 1).isLeft)
 
   test("Fisher LDA matches an independent R generalized-eigen fixture"):
     val problem = accepted(

@@ -307,7 +307,7 @@ class RecoveryValidationSuite extends munit.FunSuite:
 
   private def modelSpec(
       name: String,
-      preprocessing: PreprocessSpec = PreprocessSpec.Standardize
+      preprocessing: PreprocessSpec = PreprocessSpec.Standardize()
   ): ModelSpec =
     val candidates = Vector(
       candidate(s"$name-candidate-a", 1.0, 0.1, 0.5),

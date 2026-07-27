@@ -8,7 +8,7 @@ full square kernel matrix is too large or unnecessary.
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.kernel.Nystrom
+import multivar.analysis.*
 
 val x = Matrix(6, 2)(
   0.0, 0.0,

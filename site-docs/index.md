@@ -1,8 +1,8 @@
 # Multivar
 
 Multivar is a Scala 3 library for multivariate analysis on the JVM and
-Scala.js. It includes PCA, PLSC, CCA, reduced-rank regression, LDA,
-generalized and constrained PCA, kernel approximations, structured factors,
+Scala.js. It includes PCA, PLSC, CCA, reduced-rank regression, PLS regression,
+LDA, generalized and constrained PCA, kernel approximations, structured factors,
 generalized low-rank models, and multiblock analysis.
 
 The ordinary dense APIs accept Gale matrices and plain component counts. They
@@ -11,7 +11,7 @@ return fitted results whose fields have statistical names such as `scores`,
 
 ```scala mdoc:silent
 import gale.linalg.Matrix
-import multivar.family.spectral.Pca
+import multivar.analysis.*
 
 val observations = Matrix(6, 3)(
   2.5, 2.4,  0.5,
@@ -38,8 +38,14 @@ analysis you need, use the [method chooser](reference/choosing-method.md).
 
 ## Status
 
-Multivar is in early development on the 0.1 line. It is not yet published to
-Maven Central. The source build uses Scala 3.7.4 and supports the JVM and
+Multivar is early-development research software on the 0.1 line. Its APIs,
+numerical behavior, and result types may change without a migration period.
+Use it for research and evaluation, and validate results independently before
+relying on them in consequential work.
+
+No release has been published to Maven Central. Development builds remain on
+the 0.1 line until the API and numerical contracts are stable enough for a
+tagged release. The source build uses Scala 3.7.4 and supports the JVM and
 Scala.js.
 
 ## Main tasks
@@ -47,7 +53,7 @@ Scala.js.
 | Task | Guide |
 | --- | --- |
 | Reduce one matrix to a few components | [SVD and PCA](analyses/decompositions.md) |
-| Relate or predict two matrices | [PLSC, CCA, and reduced-rank regression](analyses/paired.md) |
+| Relate or predict two matrices | [PLSC, CCA, RRR, and PLS](analyses/paired.md) |
 | Separate labelled groups | [Discriminant and canonical methods](analyses/discrimination.md) |
 | Supply row or feature geometry | [Generalized and constrained PCA](analyses/geometry.md) |
 | Approximate a kernel eigensystem | [Nyström approximation](analyses/kernels.md) |

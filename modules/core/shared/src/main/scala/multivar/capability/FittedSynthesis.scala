@@ -169,7 +169,8 @@ final class FittedBidirectionalTransform private (
             if selectedFeatures.length == analysis.featureSpace.descriptor.size then None
             else Some(selectedFeatures)
           for
-            restored <- analysis.preprocessor.inverseTransform(
+            invertible <- analysis.preprocessor.requireInvertible
+            restored <- invertible.inverseTransform(
               MatrixView.dense(working),
               columns,
               StoragePolicy.AllowDense

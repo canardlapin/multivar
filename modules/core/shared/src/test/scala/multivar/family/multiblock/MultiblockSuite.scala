@@ -43,7 +43,7 @@ class MultiblockSuite extends munit.FunSuite:
       row += 1
 
   test("blockwise preprocessing composes into global column order") {
-    val weights = PreprocessSpec.scale(Vector(2.0)).toOption.get
+    val weights = PreprocessSpec.multiplyColumns(Vector(2.0)).toOption.get
     val fitted = BlockwisePreprocessor.fit(
       data,
       partition,
@@ -156,7 +156,7 @@ class MultiblockSuite extends munit.FunSuite:
   }
 
   test("BlockwisePreprocessor inverseTransform and restrict round-trip") {
-    val weights = PreprocessSpec.scale(Vector(2.0)).toOption.get
+    val weights = PreprocessSpec.multiplyColumns(Vector(2.0)).toOption.get
     val fitted = BlockwisePreprocessor.fit(
       data,
       partition,
@@ -167,7 +167,7 @@ class MultiblockSuite extends munit.FunSuite:
     ).toOption.get
 
     val transformed = fitted.transform(data).toOption.get
-    val roundTrip = fitted.inverseTransform(transformed).toOption.get
+    val roundTrip = fitted.requireInvertible.toOption.get.inverseTransform(transformed).toOption.get
     assertMatrixClose(
       roundTrip.toDense().toOption.get,
       Vector(
@@ -192,7 +192,8 @@ class MultiblockSuite extends munit.FunSuite:
       1e-12
     )
 
-    val restrictedRoundTrip = restricted.inverseTransform(restrictedTransformed).toOption.get
+    val restrictedRoundTrip =
+      restricted.requireInvertible.toOption.get.inverseTransform(restrictedTransformed).toOption.get
     assertMatrixClose(
       restrictedRoundTrip.toDense().toOption.get,
       Vector(

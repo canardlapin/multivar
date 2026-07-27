@@ -13,7 +13,8 @@ definition.
 | Which paired directions have high covariance? | `Plsc.fit` | `PlscFit` |
 | Which paired directions have high correlation? | `Cca.fit` | `CcaFit` |
 | How can `y` be predicted from `x` with limited rank? | `ReducedRankRegression.fit` | `ReducedRankRegressionFit` |
-| Which linear directions separate labelled classes? | `Lda.fit` | `LdaFit` |
+| How can `y` be predicted from `x` through PLS components? | `PlsRegression.fit` | `PlsRegressionFit` |
+| Which linear directions separate labelled classes? | `FisherDiscriminant.fit` | `FisherDiscriminantFit` |
 | How does PCA change under row and feature metrics? | `Gpca.fit` | `GpcaFit` |
 | What remains inside supplied row and feature design spaces? | `Cpca.fit` | `CpcaFit` |
 | How can a kernel eigensystem be approximated from landmarks? | `Nystrom.fit` or `fitRbf` | `NystromFit` |
@@ -32,10 +33,12 @@ definition.
 
 ## Reuse a fitted model
 
-- Use `project` for SVD, PCA, GPCA, and LDA.
-- Use `projectX` or `projectY` for PLSC and CCA.
-- Use `predict` for reduced-rank regression.
-- Use `transform` for Nyström.
+- Use `transform` for SVD, PCA, and Nyström, and `inverseTransform` or
+  `reconstruct` to return from component coordinates to feature coordinates.
+- Use `project` for GPCA and LDA.
+- Use `transformX` or `transformY` for PLSC and CCA.
+- Use `predict` for reduced-rank regression and PLS regression; use `transform`
+  on a PLS fit for X-scores.
 - Use fitted encoders for GLRM and aligned multiblock models.
 - Use synthesis capabilities only when a reconstruction contract has been
   fitted explicitly.

@@ -39,6 +39,9 @@ second vocabulary.
 | `family.<name>` | one statistical vertical: its domain types, programs, adapters, receipts and family-specific fitted capabilities | lower generic layers and explicitly named family substrates |
 | `workflow` | `ModelSpec`, fold-safe fitting, executable plans and cross-family pipelines | all lower packages |
 | `validation` | oracle matrices, recovery designs and claim admission | all executable packages |
+| `analysis` | curated named-selector façade for the ordinary dense analyst surface | semantic owners it re-exports; does not own types |
+| `advanced` | expert escape hatches from opaque fitted results (typed frames, raw SVD payloads) | opaque results and the capability/core types they open |
+| `syntax.unsafe` | deliberate `Either`-to-exception escapes such as `orThrow` | `core` |
 
 Gale is the numerical foundation beneath the semantic packages. It owns
 `DMat`, `DoubleLinearOperator`, reusable first-order methods, and their
@@ -82,20 +85,34 @@ protect the same hierarchy because all packages remain in `shared`.
 
 ## Import and compatibility policy
 
-Consumers import semantic owners explicitly, for example:
+Ordinary consumers import the curated façade:
+
+```scala
+import multivar.analysis.*
+```
+
+That package re-exports a short, named list of dense estimators, fitted
+results, preprocessing vocabulary, and `MultivarError`. It is an editorial
+statement about the supported ordinary API, not a mirror of the ownership
+tree. Semantic owners remain authoritative: `analysis` may only export types
+that already live under their true packages.
+
+Expert consumers keep importing owners explicitly, or open escape hatches:
 
 ```scala
 import multivar.core.{MatrixView, ComponentCount}
 import multivar.family.paired.Cca
 import multivar.workflow.ModelSpec
+import multivar.advanced.typedFrame
+import multivar.syntax.unsafe.orThrow
 ```
 
-A package cannot be wildcard-exported from a package object. Recreating the
-old flat surface would therefore require a hand-maintained alias for every
-public member, duplicating the very namespace this hierarchy removes. This
-pre-release migration deliberately updates repository consumers instead. Add
-a root compatibility alias only for a demonstrated external migration need,
-and only when it does not obscure ownership.
+A wildcard export of the whole package tree from a root package object remains
+forbidden. Recreating the old flat surface (`multivar.Pca`,
+`multivar.MatrixView`, …) would require a hand-maintained alias for every
+public member and would obscure ownership. The `PackageHierarchySuite` still
+rejects that flat root. `multivar.analysis` is a subpackage with named
+selectors only; it does not resurrect `multivar.Pca`.
 
 ## Extension test
 

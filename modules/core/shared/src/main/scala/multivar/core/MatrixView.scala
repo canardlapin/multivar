@@ -57,21 +57,58 @@ final case class ColumnStats(
       Right(GaleNumerics.vectorFromArray(out))
 
   def sampleStandardDeviations: Either[MultivarError, DVec] =
-    if count <= 1 then Left(MultivarError.InsufficientRows("sample standard deviations", 2, count))
+    standardDeviations(VarianceConvention.Sample)
+
+  /** Sum of squares about the origin, over every entry.
+    *
+    * Where exact centered sums are available this reconstitutes the raw sum as
+    * `centered + n * mean^2` rather than reading the raw second moment directly.
+    * The two are equal in exact arithmetic, but the raw moment of freshly centered
+    * data is a difference of two nearly equal large numbers, which is precisely the
+    * case this quantity is wanted for.
+    */
+  def totalSumSquares: Double =
+    centeredSumSquares match
+      case Some(centered) if count > 0 =>
+        var total = 0.0
+        var col = 0
+        while col < cols do
+          val mean = sums(col) / count
+          total += centered(col) + count * mean * mean
+          col += 1
+        total
+      case _ =>
+        var total = 0.0
+        var col = 0
+        while col < cols do
+          total += sumSquares(col)
+          col += 1
+        total
+
+  def standardDeviations(convention: VarianceConvention): Either[MultivarError, DVec] =
+    if count < convention.minimumRows then
+      Left(
+        MultivarError.InsufficientRows(
+          s"${convention.label} standard deviations",
+          convention.minimumRows,
+          count
+        )
+      )
     else
+      val denominator = convention.denominator(count)
       val out = new Array[Double](cols)
       centeredSumSquares match
         case Some(centered) =>
           var col = 0
           while col < cols do
-            out(col) = Math.sqrt(Math.max(centered(col) / (count - 1), 0.0))
+            out(col) = Math.sqrt(Math.max(centered(col) / denominator, 0.0))
             col += 1
         case None =>
           var col = 0
           while col < cols do
             val mean = sums(col) / count
             val ss = sumSquares(col) - count * mean * mean
-            out(col) = Math.sqrt(Math.max(ss / (count - 1), 0.0))
+            out(col) = Math.sqrt(Math.max(ss / denominator, 0.0))
             col += 1
       Right(GaleNumerics.vectorFromArray(out))
 

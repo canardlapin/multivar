@@ -61,9 +61,11 @@ enum PairedLatentMethod:
       direction: RegressionDirection,
       regularization: RegressionRegularization
   )
+  case PlsRegression(algorithm: PlsAlgorithm)
 
   def label: String =
     this match
       case Plsc                             => "plsc"
       case Cca(_)                           => "cca"
       case ReducedRankRegression(_, _)      => "rrr"
+      case PlsRegression(algorithm)         => s"pls-${algorithm.label}"

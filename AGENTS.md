@@ -11,8 +11,10 @@ before changing ownership boundaries.
   semantic, numerical, solver, model-family, and workflow packages.
 - `modules/ir` is a JVM/Scala.js `crossProject` containing `multivar.ir.*`,
   JSON codecs, schemas, and conformance fixtures.
-- Core depends on the pinned Gale source revision in `build.sbt`. IR depends on
-  core. Keep this graph acyclic.
+- Core depends on the pinned Gale Maven coordinate in `build.sbt` (installed
+  locally via `tools/publish-gale-local.sh` until Gale is on Central). IR
+  depends on core. Keep this graph acyclic. Do not reintroduce a Git
+  `ProjectRef` for Gale.
 - Gale owns portable matrices, linear operators, general numerical solvers, and
   first-order stopping certificates. Multivar owns semantic lowering and
   statistical interpretation; do not recreate a `multivar.numerics` layer.
@@ -25,7 +27,19 @@ before changing ownership boundaries.
 ## Build and tests
 
 - Toolchain: Scala 3.7.4, sbt 1.10.5, MUnit.
+- On a clean machine run `./tools/publish-gale-local.sh` before compiling; CI
+  does this automatically.
 - Run `sbt compileAll testAll` before declaring a feature complete.
+- Run `sbt smokeCheck` to prove publishedLocal artifacts resolve for a consumer
+  that does not `dependsOn` the source modules.
+- `tools/public-surface.sh` guards the ordinary public API surface listed in
+  `tools/public-surface/surface-classes.txt`. If a change alters that surface,
+  run `tools/public-surface.sh --update` and review the resulting diff as part
+  of the change. Widening the surface is a compatibility decision, not a detail.
+- MiMa is wired (`sbt mimaCheck`) with empty previous artifacts until `0.1.0`.
+- Ordinary documentation and examples import `multivar.analysis.*`. Expert
+  escape hatches live in `multivar.advanced` and `multivar.syntax.unsafe`. Do
+  not resurrect a flat `multivar.Pca`-style root mirror.
 - Shared tests must pass on both JVM and Scala.js. Platform-only tests belong in
   the corresponding `jvm` or `js` source tree.
 - Keep `-deprecation -feature -unchecked` warning-clean.
