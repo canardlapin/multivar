@@ -55,6 +55,16 @@ object MultisetAssociation:
   def fit(
       study: DirectSumStudy,
       problem: MaximizeAssociation[study.rowSpace.Id],
+      components: Int
+  ): Either[DirectSumError, MultisetAssociationFit[study.featureSpace.Id, ? <: SemanticSpace]] =
+    ComponentCount(components)
+      .left
+      .map(DirectSumError.Multivar.apply)
+      .flatMap(checked => fit(study, problem, checked, StoragePolicy.AllowDense))
+
+  def fit(
+      study: DirectSumStudy,
+      problem: MaximizeAssociation[study.rowSpace.Id],
       components: ComponentCount,
       policy: StoragePolicy,
       eigenSolver: GeneralizedEigenSolver = DenseSolvers.generalizedEigen,

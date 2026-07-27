@@ -101,6 +101,27 @@ class KernelSuite extends munit.FunSuite:
     assertMatrixClose(fit.transform(input).toOption.get, fit.eigen.scores, 1e-9)
   }
 
+  test("dense Nyström conveniences preserve the checked fit and validate raw parameters") {
+    val input = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(-1.0, 0.0),
+        Vector(0.0, 1.0),
+        Vector(1.0, 0.0),
+        Vector(0.0, -1.0)
+      )
+    )
+    val landmarks = Vector(0, 1, 2, 3)
+    val convenient = Nystrom.fit(input, components = 2, landmarks).toOption.get
+    val canonical =
+      Nystrom.fit(MatrixView.dense(input), ComponentCount.unsafe(2), landmarks).toOption.get
+
+    assertMatrixClose(convenient.scores, canonical.scores, 0.0)
+    assertMatrixClose(convenient.transform(input).toOption.get, convenient.scores, 0.0)
+    assertEquals(convenient.eigenvalues.copyData.toVector, canonical.eigenvalues.copyData.toVector)
+    assert(Nystrom.fit(input, components = 0, landmarks).isLeft)
+    assert(Nystrom.fitRbf(input, components = 2, landmarks, gamma = -0.1).isLeft)
+  }
+
   test("partial-landmark standard Nyström reconstructs the explicit kernel approximation") {
     val x = GaleNumerics.matrixFromRows(
       Vector(
@@ -135,7 +156,7 @@ class KernelSuite extends munit.FunSuite:
         )
       )
     )
-    val kernel = RbfKernel(gamma = 0.3)
+    val kernel = RbfKernel(gamma = 0.3).toOption.get
     val fit = Nystrom.fit(
       x,
       ComponentCount(3).toOption.get,
@@ -301,10 +322,12 @@ class KernelSuite extends munit.FunSuite:
   }
 
   test("RBF kernels require a finite positive gamma") {
-    intercept[IllegalArgumentException](RbfKernel(0.0))
-    intercept[IllegalArgumentException](RbfKernel(-1.0))
-    intercept[IllegalArgumentException](RbfKernel(Double.NaN))
-    intercept[IllegalArgumentException](RbfKernel(Double.PositiveInfinity))
+    RbfKernel(0.0) match
+      case Left(MultivarError.InvalidKernelParameter("gamma", 0.0, _)) =>
+      case other => fail(s"expected typed RBF gamma rejection, got $other")
+    assert(RbfKernel(-1.0).isLeft)
+    assert(RbfKernel(Double.NaN).isLeft)
+    assert(RbfKernel(Double.PositiveInfinity).isLeft)
   }
 
   test("a user kernel with roundoff asymmetry on the landmark block still fits") {

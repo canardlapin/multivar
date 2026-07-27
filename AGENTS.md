@@ -24,7 +24,7 @@ before changing ownership boundaries.
 
 ## Build and tests
 
-- Toolchain: Scala 3.4.2, sbt 1.10.5, MUnit.
+- Toolchain: Scala 3.7.4, sbt 1.10.5, MUnit.
 - Run `sbt compileAll testAll` before declaring a feature complete.
 - Shared tests must pass on both JVM and Scala.js. Platform-only tests belong in
   the corresponding `jvm` or `js` source tree.

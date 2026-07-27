@@ -1,9 +1,13 @@
 import org.scalajs.sbtplugin.ScalaJSPlugin.autoImport.*
+import org.typelevel.sbt.TypelevelSitePlugin
+import org.typelevel.sbt.TypelevelSitePlugin.autoImport.*
 import sbtcrossproject.CrossPlugin.autoImport.*
 import scalajscrossproject.ScalaJSCrossPlugin.autoImport.*
+import laika.ast.Path.Root
+import laika.helium.config.{HeliumIcon, IconLink}
 
 ThisBuild / organization := "io.github.canardlapin"
-ThisBuild / scalaVersion := "3.4.2"
+ThisBuild / scalaVersion := "3.7.4"
 ThisBuild / version      := "0.1.0-SNAPSHOT"
 ThisBuild / versionScheme := Some("early-semver")
 ThisBuild / homepage := Some(url("https://github.com/canardlapin/multivar"))
@@ -27,6 +31,8 @@ ThisBuild / developers := List(
 )
 ThisBuild / pomIncludeRepository := (_ => false)
 ThisBuild / publishMavenStyle := true
+ThisBuild / tlSitePublishBranch := None
+ThisBuild / tlSitePublishTags := false
 
 // Immutable source dependency containing the shared matrix, operator, solver,
 // spectral, and first-order optimization substrate.
@@ -36,11 +42,9 @@ lazy val galeBuild =
 lazy val galeCoreJVM = ProjectRef(galeBuild, "coreJVM")
 lazy val galeCoreJS  = ProjectRef(galeBuild, "coreJS")
 
-// Multivar retains ScalaFIM's deliberate 3.4.2 consumer line. Gale's portable
-// sources are cross-checked on that compiler even though Gale itself publishes
-// its current baseline from Scala 3.7.4.
-galeCoreJVM / scalaVersion := "3.4.2"
-galeCoreJS / scalaVersion  := "3.4.2"
+// Compile the pinned Gale source dependency on its published Scala baseline.
+galeCoreJVM / scalaVersion := "3.7.4"
+galeCoreJS / scalaVersion  := "3.7.4"
 
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
@@ -91,6 +95,50 @@ lazy val ir =
 lazy val irJS  = ir.js
 lazy val irJVM = ir.jvm
 
+lazy val stageDocsApi = taskKey[Unit](
+  "Stage the generated JVM Scaladoc for the public modules inside the guide site."
+)
+
+lazy val docs =
+  project
+    .in(file("site"))
+    .dependsOn(coreJVM, irJVM)
+    .enablePlugins(TypelevelSitePlugin)
+    .settings(
+      name := "multivar-docs",
+      mdocIn := (ThisBuild / baseDirectory).value / "site-docs",
+      laikaConfig := LaikaConfig.defaults.withRawContent,
+      tlSiteHelium := tlSiteHelium.value
+        .site
+        .topNavigationBar(
+          homeLink = IconLink.internal(Root / "index.md", HeliumIcon.home)
+        )
+        .site
+        .mainNavigation(
+          depth = 3,
+          includePageSections = false
+        ),
+      stageDocsApi := {
+        val destination = mdocOut.value / "api"
+        IO.delete(destination)
+        IO.copyDirectory(
+          (coreJVM / Compile / doc).value,
+          destination / "core"
+        )
+        IO.copyDirectory(
+          (irJVM / Compile / doc).value,
+          destination / "ir"
+        )
+      },
+      tlSite := Def
+        .sequential(
+          mdoc.toTask(""),
+          stageDocsApi,
+          laikaSite
+        )
+        .value
+    )
+
 lazy val root =
   project
     .in(file("."))
@@ -102,3 +150,4 @@ lazy val root =
 
 addCommandAlias("compileAll", ";coreJVM/compile;coreJS/compile;irJVM/compile;irJS/compile")
 addCommandAlias("testAll", ";coreJVM/test;coreJS/test;irJVM/test;irJS/test")
+addCommandAlias("docsCheck", "docs/tlSite")

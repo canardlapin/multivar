@@ -580,7 +580,7 @@ private[multivar] object PlanOps:
         Right(LinearKernel())
       case "rbf" =>
         spec.parameters.get("gamma") match
-          case Some(gamma) if gamma.isFinite && gamma > 0.0 => Right(RbfKernel(gamma))
+          case Some(gamma) if gamma.isFinite && gamma > 0.0 => RbfKernel(gamma)
           case _ => Left(MultivarError.InvalidKernelFit("RBF kernel spec requires a positive finite gamma"))
       case other =>
         Left(MultivarError.InvalidKernelFit(s"unsupported kernel spec '$other'"))

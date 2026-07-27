@@ -70,6 +70,41 @@ class GpcaProblemSuite extends munit.FunSuite:
       )
     )
 
+  test("dense GPCA convenience preserves the checked operator fit"):
+    val x = GaleNumerics.matrixFromRows(
+      Seq(
+        Seq(1.0, 2.0, 0.0),
+        Seq(3.0, -1.0, 1.0),
+        Seq(0.5, 4.0, 2.0),
+        Seq(-2.0, 1.5, 3.0)
+      )
+    )
+    val rowMetric = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(2.0, 1.0, 3.0, 0.5))))
+    val featureMetric = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(Seq(1.0, 2.0, 0.75))))
+    val checked = ComponentCount.unsafe(2)
+    val convenient = acceptedMv(
+      Gpca.fit(x, components = 2, rowMetric, featureMetric, PreprocessSpec.Pass)
+    )
+    val rows = MvSpace.of("gpca.test.rows", SpaceRole.Samples, x.rows).toOption.get
+    val features = MvSpace.of("gpca.test.features", SpaceRole.Observed, x.cols).toOption.get
+    val canonicalProblem = acceptedMv(
+      DynamicGpcaProblem.from(
+        MatrixView.dense(x),
+        rows,
+        features,
+        rowMetric,
+        featureMetric,
+        value("gpca.test.input"),
+        SemanticProvenance.source("gpca-test")
+      )
+    )
+    val canonical = acceptedMv(canonicalProblem.fit(checked))
+
+    assertVector(convenient.eigenvalues, canonical.generalizedEigenvalues.copyData.toVector, 0.0)
+    assertVector(convenient.singularValues, canonical.singularValues.copyData.toVector, 0.0)
+    assertMatrix(convenient.project(x).toOption.get, convenient.scores, 0.0)
+    assert(Gpca.fit(x, components = 0, rowMetric, featureMetric).isLeft)
+
   test("semantic GPCA executes the operator program and matches the R generalized spectrum"):
     val x = GaleNumerics.matrixFromRows(R.g3X)
     val rowMetric = acceptedMv(MetricSpec.diagonal(DVec.fromSeq(R.g3RowWeights)))

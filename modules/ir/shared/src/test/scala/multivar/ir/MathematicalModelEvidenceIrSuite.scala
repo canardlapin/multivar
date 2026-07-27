@@ -220,7 +220,7 @@ class MathematicalModelEvidenceIrSuite extends munit.FunSuite:
         "generator.glrm.fixture",
         4409L,
         Vector(
-          DependencyVersionEvidenceIr("scala", "3.4.2"),
+          DependencyVersionEvidenceIr("scala", "3.7.4"),
           DependencyVersionEvidenceIr("gale", "0.1.0")
         ),
         12.5,
@@ -265,7 +265,7 @@ class MathematicalModelEvidenceIrSuite extends munit.FunSuite:
       reproducibility = ReproducibilityReceiptIr(
         s"generator.$index",
         index.toLong,
-        Vector(DependencyVersionEvidenceIr("scala", "3.4.2")),
+        Vector(DependencyVersionEvidenceIr("scala", "3.7.4")),
         1.0,
         ToleranceIr(1e-9, 1e-8),
         s"result.$index"

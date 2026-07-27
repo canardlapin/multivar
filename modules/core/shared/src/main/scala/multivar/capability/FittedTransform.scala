@@ -33,9 +33,14 @@ final class FittedFrameTransform private (
     val provenance: SemanticProvenance
 )(
     val frame: FunctionalFrame[featureSpace.Id, componentSpace.Id, UncheckedEvidence],
+    val weights: DMat,
     val trainingScores: Op[Primal[componentSpace.Id], Primal[trainingRowSpace.Id], ScoreOperatorRole, UncheckedEvidence],
     val trainingValues: DMat
 ):
+  /** Training observations expressed in the fitted component coordinates. */
+  def scores: DMat =
+    trainingValues
+
   def requireSynthesis: Either[MultivarError, FittedBidirectionalTransform] =
     Left(
       MultivarError.DecoderUnavailable(
@@ -66,6 +71,9 @@ final class FittedFrameTransform private (
       columns: IndexSet
   ): Either[MultivarError, RestrictedFrameTransform[featureSpace.Id, componentSpace.Id]] =
     RestrictedFrameTransform.from(this, columns)
+
+  def project(input: DMat): Either[MultivarError, DMat] =
+    project(MatrixView.dense(input))
 
   def project(input: MatrixView): Either[MultivarError, DMat] =
     if input.cols != featureSpace.descriptor.size then
@@ -167,6 +175,7 @@ object FittedFrameTransform:
             provenance
           )(
             frame,
+            weights,
             scoreOperator,
             scoreValues
           )
@@ -179,8 +188,12 @@ final class FittedCoefficientTransform private (
     val responsePreprocessor: FittedPreprocessor,
     val provenance: SemanticProvenance
 )(
-    val coefficient: OpCoefficient[sourceFeatureSpace.Id, targetFeatureSpace.Id, UncheckedEvidence]
+    val coefficient: OpCoefficient[sourceFeatureSpace.Id, targetFeatureSpace.Id, UncheckedEvidence],
+    val coefficients: DMat
 ):
+  def predictWorking(input: DMat): Either[MultivarError, DMat] =
+    predictWorking(MatrixView.dense(input))
+
   def predictWorking(input: MatrixView): Either[MultivarError, DMat] =
     if input.cols != sourceFeatureSpace.descriptor.size then
       Left(
@@ -204,6 +217,9 @@ final class FittedCoefficientTransform private (
         )
         predicted <- transformSemantic(coefficient.andThen(table).toDense)
       yield predicted
+
+  def predict(input: DMat): Either[MultivarError, DMat] =
+    predict(MatrixView.dense(input))
 
   def predict(input: MatrixView): Either[MultivarError, DMat] =
     for
@@ -250,7 +266,7 @@ object FittedCoefficientTransform:
           predictorPreprocessor,
           responsePreprocessor,
           provenance
-        )(operator)
+        )(operator, coefficient)
 
 private def transformSemantic[A](value: Either[SemanticError, A]): Either[MultivarError, A] =
   value.left.map:

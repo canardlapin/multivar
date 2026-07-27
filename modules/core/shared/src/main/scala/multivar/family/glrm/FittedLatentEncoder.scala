@@ -124,9 +124,10 @@ final case class FittedLatentEncoding[Latent <: SemanticSpace](
 
 /** Nonlinear new-row inference against a frozen GLRM decoder.
   *
-  * This is deliberately unrelated to [[FittedProjection]]: the code is the
-  * solution of a convex observed-entry problem, not a matrix multiplication by
-  * a fitted linear frame.
+  * This is deliberately unrelated to
+  * [[multivar.capability.FittedFrameTransform]]: the code is the solution of a
+  * convex observed-entry problem, not a matrix multiplication by a fitted
+  * linear frame.
   */
 final class FittedLatentEncoder[
     Feature <: SemanticSpace,

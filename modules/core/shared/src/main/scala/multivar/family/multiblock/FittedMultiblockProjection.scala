@@ -43,7 +43,8 @@ private final case class FittedBlockRuntime[
   * The global transform uses the assembled weighted frame. Block projection uses
   * the original local frame, while block contribution applies its declared
   * combination weight. Arbitrary feature subsets delegate to the same fitted
-  * restriction machinery as every other [[FittedFrameTransform]].
+  * restriction machinery as every other
+  * [[multivar.capability.FittedFrameTransform]].
   */
 final class FittedMultiblockProjection[
     GlobalFeature <: SemanticSpace,

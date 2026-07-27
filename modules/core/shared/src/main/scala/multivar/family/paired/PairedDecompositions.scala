@@ -5,6 +5,7 @@ import multivar.core.*
 import multivar.capability.*
 
 import gale.linalg.DMat
+import gale.linalg.DVec
 
 final case class PlscFit(
     result: SvdResult,
@@ -12,12 +13,34 @@ final case class PlscFit(
     sourceTransform: FittedFrameTransform,
     targetTransform: FittedFrameTransform
 ):
-  def xScores: DMat = sourceTransform.trainingValues
-  def yScores: DMat = targetTransform.trainingValues
+  def xScores: DMat = sourceTransform.scores
+  def yScores: DMat = targetTransform.scores
+  def xWeights: DMat = sourceTransform.weights
+  def yWeights: DMat = targetTransform.weights
+  def covariances: DVec = result.singularValues
+  def projectX(input: DMat): Either[MultivarError, DMat] = projectX(MatrixView.dense(input))
   def projectX(input: MatrixView): Either[MultivarError, DMat] = sourceTransform.project(input)
+  def projectY(input: DMat): Either[MultivarError, DMat] = projectY(MatrixView.dense(input))
   def projectY(input: MatrixView): Either[MultivarError, DMat] = targetTransform.project(input)
 
 object Plsc:
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int
+  ): Either[MultivarError, PlscFit] =
+    fit(x, y, components, PreprocessSpec.Center, PreprocessSpec.Center)
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      xPreproc: PreprocessSpec,
+      yPreproc: PreprocessSpec
+  ): Either[MultivarError, PlscFit] =
+    ComponentCount(components).flatMap: checked =>
+      fit(MatrixView.dense(x), MatrixView.dense(y), checked, xPreproc, yPreproc)
+
   def fit(
       x: MatrixView,
       y: MatrixView,
@@ -62,12 +85,57 @@ final case class CcaFit(
     sourceTransform: FittedFrameTransform,
     targetTransform: FittedFrameTransform
 ):
-  def xScores: DMat = sourceTransform.trainingValues
-  def yScores: DMat = targetTransform.trainingValues
+  def xScores: DMat = sourceTransform.scores
+  def yScores: DMat = targetTransform.scores
+  def xWeights: DMat = sourceTransform.weights
+  def yWeights: DMat = targetTransform.weights
+  def correlations: DVec = result.singularValues
+  def projectX(input: DMat): Either[MultivarError, DMat] = projectX(MatrixView.dense(input))
   def projectX(input: MatrixView): Either[MultivarError, DMat] = sourceTransform.project(input)
+  def projectY(input: DMat): Either[MultivarError, DMat] = projectY(MatrixView.dense(input))
   def projectY(input: MatrixView): Either[MultivarError, DMat] = targetTransform.project(input)
 
 object Cca:
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int
+  ): Either[MultivarError, CcaFit] =
+    fit(x, y, components, ridge = 1e-8)
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      ridge: Double
+  ): Either[MultivarError, CcaFit] =
+    ComponentCount(components).flatMap: checked =>
+      fit(MatrixView.dense(x), MatrixView.dense(y), checked, ridge)
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      xRidge: Double,
+      yRidge: Double
+  ): Either[MultivarError, CcaFit] =
+    for
+      checked <- ComponentCount(components)
+      regularization <- CcaRegularization.asymmetric(xRidge, yRidge)
+      fit <- fitRegularized(MatrixView.dense(x), MatrixView.dense(y), checked, regularization)
+    yield fit
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      ridge: Double,
+      xPreproc: PreprocessSpec,
+      yPreproc: PreprocessSpec
+  ): Either[MultivarError, CcaFit] =
+    ComponentCount(components).flatMap: checked =>
+      fit(MatrixView.dense(x), MatrixView.dense(y), checked, ridge, xPreproc, yPreproc)
+
   def fit(
       x: MatrixView,
       y: MatrixView,
@@ -82,6 +150,15 @@ object Cca:
   ): Either[MultivarError, CcaFit] =
     CcaRegularization.symmetric(ridge).flatMap: regularization =>
       fitRegularized(x, y, components, regularization, xPreproc, yPreproc, eigenSolver, solver, rowMetric, policy)
+
+  def fitRegularized(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      regularization: CcaRegularization
+  ): Either[MultivarError, CcaFit] =
+    ComponentCount(components).flatMap: checked =>
+      fitRegularized(MatrixView.dense(x), MatrixView.dense(y), checked, regularization)
 
   def fitRegularized(
       x: MatrixView,
@@ -135,19 +212,85 @@ final case class ReducedRankRegressionFit(
     targetTransform: FittedFrameTransform,
     operator: PairedOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace]
 ):
+  /** The fitted rank-constrained coefficient map from predictors to responses. */
+  def coefficients: DMat =
+    coefficientTransform.coefficients
+
+  def xScores: DMat = sourceTransform.scores
+  def yScores: DMat = targetTransform.scores
+  def xWeights: DMat = sourceTransform.weights
+  def yLoadings: DMat = targetTransform.weights
+
+  def predictWorking(input: DMat): Either[MultivarError, DMat] =
+    predictWorking(MatrixView.dense(input))
+
   def predictWorking(input: MatrixView): Either[MultivarError, DMat] =
     coefficientTransform.predictWorking(input)
+
+  def predict(input: DMat): Either[MultivarError, DMat] =
+    predict(MatrixView.dense(input))
 
   def predict(input: MatrixView): Either[MultivarError, DMat] =
     coefficientTransform.predict(input)
 
+  def projectX(input: DMat): Either[MultivarError, DMat] =
+    projectX(MatrixView.dense(input))
+
   def projectX(input: MatrixView): Either[MultivarError, DMat] =
     sourceTransform.project(input)
+
+  def projectY(input: DMat): Either[MultivarError, DMat] =
+    projectY(MatrixView.dense(input))
 
   def projectY(input: MatrixView): Either[MultivarError, DMat] =
     targetTransform.project(input)
 
 object ReducedRankRegression:
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int
+  ): Either[MultivarError, ReducedRankRegressionFit] =
+    fit(x, y, components, RegressionRegularization.Ols)
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      regularization: RegressionRegularization
+  ): Either[MultivarError, ReducedRankRegressionFit] =
+    fit(x, y, components, regularization, PreprocessSpec.Center, PreprocessSpec.Center)
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      ridge: Double
+  ): Either[MultivarError, ReducedRankRegressionFit] =
+    for
+      regularization <- RegressionRegularization.ridge(ridge)
+      fit <- fit(x, y, components, regularization)
+    yield fit
+
+  def fit(
+      x: DMat,
+      y: DMat,
+      components: Int,
+      regularization: RegressionRegularization,
+      xPreproc: PreprocessSpec,
+      yPreproc: PreprocessSpec
+  ): Either[MultivarError, ReducedRankRegressionFit] =
+    ComponentCount(components).flatMap: checked =>
+      fit(
+        MatrixView.dense(x),
+        MatrixView.dense(y),
+        checked,
+        regularization,
+        RegressionDirection.XToY,
+        xPreproc,
+        yPreproc
+      )
+
   def fit(
       x: MatrixView,
       y: MatrixView,

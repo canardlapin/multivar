@@ -90,8 +90,8 @@ import multivar.family.paired.Cca
 import multivar.workflow.ModelSpec
 ```
 
-Scala 3.4 cannot wildcard-export a package from a package object. Recreating
-the old flat surface would therefore require a hand-maintained alias for every
+A package cannot be wildcard-exported from a package object. Recreating the
+old flat surface would therefore require a hand-maintained alias for every
 public member, duplicating the very namespace this hierarchy removes. This
 pre-release migration deliberately updates repository consumers instead. Add
 a root compatibility alias only for a demonstrated external migration need,

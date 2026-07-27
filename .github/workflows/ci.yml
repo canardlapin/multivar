@@ -25,3 +25,5 @@ jobs:
         run: |
           ./tools/check-boundary.sh
           sbt compileAll testAll
+      - name: Compile API docs and executable guides
+        run: sbt docsCheck

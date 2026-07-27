@@ -320,3 +320,67 @@ private[multivar] object CpcaMath:
       acc += values(i) * values(i)
       i += 1
     acc
+
+/** The ordinary one-block constrained PCA result.
+  *
+  * The complete constrained block (`GxH`) is exposed directly; the underlying
+  * partitioned operator fit remains available for diagnostics and provenance.
+  */
+final case class CpcaFit(
+    block: CpcaBlockResult,
+    result: PreparedCpcaOperatorFit
+):
+  def scores: DMat = block.scores
+
+  def loadings: DMat = block.v
+
+  def singularValues: DVec = block.singularValues
+
+  def reconstruct: Either[MultivarError, DMat] =
+    block.reconstructOriginal()
+
+object Cpca:
+  /** Fit the complete constrained block selected by row and feature designs. */
+  def fit(
+      input: DMat,
+      rowDesign: DMat,
+      featureDesign: DMat,
+      components: Int
+  ): Either[MultivarError, CpcaFit] =
+    for
+      fitted <- fitBlocks(
+        input,
+        rowDesign,
+        featureDesign,
+        components,
+        Vector(CpcaBlock.GxH)
+      )
+      block <- fitted
+        .block(CpcaBlock.GxH)
+        .toRight(MultivarError.SolverFailed("CPCA fit omitted its requested GxH block"))
+    yield CpcaFit(block, fitted)
+
+  /** Fit an explicit subset of the four CPCA blocks with one rank request. */
+  def fitBlocks(
+      input: DMat,
+      rowDesign: DMat,
+      featureDesign: DMat,
+      components: Int,
+      blocks: Iterable[CpcaBlock]
+  ): Either[MultivarError, PreparedCpcaOperatorFit] =
+    for
+      checked <- ComponentCount(components)
+      request <- CpcaBlockRequest.from(blocks, defaultComponents = Some(checked))
+      rows <- MvSpace.of("cpca.rows", SpaceRole.Samples, input.rows)
+      features <- MvSpace.of("cpca.features", SpaceRole.Observed, input.cols)
+      problem <- CpcaOperatorProblem.fromMatrices(
+        MatrixView.dense(input),
+        None,
+        None,
+        CpcaConstraint.Basis(rowDesign),
+        CpcaConstraint.Basis(featureDesign),
+        rows,
+        features
+      )
+      fit <- problem.fit(request)
+    yield fit

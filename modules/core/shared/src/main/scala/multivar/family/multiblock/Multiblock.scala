@@ -7,7 +7,7 @@ import gale.linalg.DMat
 
 final case class BlockPreprocessSpec(id: BlockId, spec: PreprocessSpec)
 
-/** Blockwise column preprocessing over a [[BlockPartition]].
+/** Blockwise column preprocessing over a [[multivar.core.BlockPartition]].
   *
   * Construct via [[BlockwisePreprocessor.fit]], which guarantees that `global` is the
   * composition of `blockPreprocessors` laid out in global column order, so `transform`

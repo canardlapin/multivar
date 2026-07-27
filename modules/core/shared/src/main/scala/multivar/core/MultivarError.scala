@@ -23,6 +23,7 @@ enum MultivarError:
   case InvalidDimension(kind: String, value: Int)
   case InvalidTolerance(kind: String, value: Double)
   case InvalidRegularization(kind: String, value: Double, requirement: String)
+  case InvalidKernelParameter(name: String, value: Double, requirement: String)
   case DimensionOverflow(rows: Int, cols: Int)
   case EmptyIndexSet(axis: IndexAxis)
   case IndexOutOfBounds(axis: IndexAxis, index: Int, limit: Int)
@@ -65,6 +66,8 @@ enum MultivarError:
         s"$kind must be finite and non-negative, got $value"
       case InvalidRegularization(kind, value, requirement) =>
         s"invalid $kind $value: $requirement"
+      case InvalidKernelParameter(name, value, requirement) =>
+        s"invalid kernel parameter $name=$value: $requirement"
       case DimensionOverflow(rows, cols) =>
         s"matrix dimensions are too large for row-major storage: ${rows}x${cols}"
       case EmptyIndexSet(axis) =>

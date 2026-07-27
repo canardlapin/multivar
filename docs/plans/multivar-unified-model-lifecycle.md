@@ -116,7 +116,7 @@ when both contract values are otherwise well formed.
 ## The lifecycle algebra
 
 The following is the intended API shape. Exact syntax must be proved in a small
-Scala 3.4.2 compilation spike before the implementation spreads, but the type
+Scala 3.7.4 compilation spike before the implementation spreads, but the type
 relationships are normative.
 
 ```scala

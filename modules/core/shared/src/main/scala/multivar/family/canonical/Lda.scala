@@ -2,6 +2,7 @@ package multivar
 package family.canonical
 
 import multivar.core.*
+import multivar.capability.FittedFrameTransform
 import multivar.optimization.*
 import multivar.solver.*
 
@@ -250,8 +251,9 @@ final case class LdaOperatorFit[
     yield bundle
 
 /** LDA is a typed assembly of class relations and two second-order operators.
-  * It owns no eigensolver: Fisher delegates to [[GeneralizedRayleighRitz]] and
-  * trace-ratio delegates to [[TraceRatioOptimization]].
+  * It owns no eigensolver: Fisher delegates to
+  * [[multivar.solver.GeneralizedRayleighRitz]] and trace-ratio delegates to
+  * [[multivar.solver.TraceRatioOptimization]].
   */
 final class LdaProblem[Rows <: SemanticSpace, Feature <: SemanticSpace] private (
     val rowSpace: SpaceEvidence[Rows],
@@ -549,6 +551,69 @@ final class PreparedLdaProblem private[multivar] (
   ): Either[MultivarError, LdaOperatorFit[rows.Id, features.Id, ? <: SemanticSpace]] =
     value.fit(components, objective)
 
+final case class LdaFit(
+    result: LdaOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace],
+    transform: FittedFrameTransform
+):
+  def scores: DMat = transform.scores
+
+  def weights: DMat = transform.weights
+
+  def criterionValues: DVec = result.criterionValues
+
+  def project(input: DMat): Either[MultivarError, DMat] =
+    project(MatrixView.dense(input))
+
+  def project(input: MatrixView): Either[MultivarError, DMat] =
+    transform.project(input)
+
+object Lda:
+  def fit(
+      input: DMat,
+      labels: Seq[Int],
+      components: Int
+  ): Either[MultivarError, LdaFit] =
+    fit(input, labels, components, ridge = 1e-8)
+
+  def fit(
+      input: DMat,
+      labels: Seq[Int],
+      components: Int,
+      ridge: Double
+  ): Either[MultivarError, LdaFit] =
+    fit(input, labels, components, ridge, LdaObjective.FisherRayleigh)
+
+  def fit(
+      input: DMat,
+      labels: Seq[Int],
+      components: Int,
+      ridge: Double,
+      objective: LdaObjective
+  ): Either[MultivarError, LdaFit] =
+    for
+      checked <- ComponentCount(components)
+      incidence <- ClassIncidence.hard(labels)
+      withinPolicy <-
+        if ridge == 0.0 then Right(WithinScatterPolicy.RequirePositiveDefinite)
+        else TraceRidgeFraction(ridge).map(WithinScatterPolicy.FixedTraceScaledRidge(_))
+      problem <- LdaProblem.fromMatrix(
+        input,
+        incidence,
+        withinPolicy
+      )
+      operator <- problem.fit(checked, objective)
+      weights <- ldaFrameWeights(operator)
+      preprocessor <- PreprocessSpec.Pass.fit(MatrixView.dense(input))
+      transform <- FittedFrameTransform.fromTraining(
+        MatrixView.dense(input),
+        weights,
+        preprocessor,
+        "lda",
+        checked,
+        Some(operator.criterionValues)
+      )
+    yield LdaFit(operator, transform)
+
 private final case class LdaSolved(
     vectors: DMat,
     values: DVec,
@@ -592,3 +657,11 @@ private def ldaSemantic[A](result: Either[SemanticError, A]): Either[MultivarErr
 
 private def ldaProgram[A](result: Either[ProgramError, A]): Either[MultivarError, A] =
   result.left.map(error => MultivarError.SolverFailed(error.message))
+
+private def ldaFrameWeights(
+    fit: LdaOperatorFit[? <: SemanticSpace, ? <: SemanticSpace, ? <: SemanticSpace]
+): Either[MultivarError, DMat] =
+  fit.functionalFrame.weights.toDense.left.map:
+    case SemanticError.MultivarFailure(error)  => error
+    case SemanticError.LinearMapFailure(error) => LinalgErrorAdapter.toMultivarError(error)
+    case error                                 => MultivarError.SolverFailed(error.message)

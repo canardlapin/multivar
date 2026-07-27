@@ -237,8 +237,7 @@ class DirectSumStudySuite extends munit.FunSuite:
       MultisetAssociation.fit(
         data.study,
         problem,
-        ComponentCount.unsafe(1),
-        StoragePolicy.AllowDense
+        components = 1
       )
     )
 
@@ -259,6 +258,7 @@ class DirectSumStudySuite extends munit.FunSuite:
       fit.programFit.frames.head.parameter.componentSpace.descriptor,
       fit.functionalFrame.weights.domain.descriptor.space
     )
+    assert(MultisetAssociation.fit(data.study, problem, components = 0).isLeft)
   }
 
   test("pairwise second-order blocks equal the direct-sum operator and an independent dense oracle") {

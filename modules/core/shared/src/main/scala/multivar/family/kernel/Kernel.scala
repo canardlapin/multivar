@@ -29,8 +29,7 @@ final case class LinearKernel() extends Kernel:
         _ <- MatrixOps.checkFinite("linear kernel matrix", out)
       yield out
 
-final case class RbfKernel(gamma: Double) extends Kernel:
-  require(gamma.isFinite && gamma > 0.0, "RBF gamma must be finite and positive")
+final class RbfKernel private (val gamma: Double) extends Kernel:
 
   override def spec: KernelSpec =
     KernelSpec("rbf", Map("gamma" -> gamma))
@@ -61,9 +60,24 @@ final case class RbfKernel(gamma: Double) extends Kernel:
           row += 1
         GaleNumerics.matrixFromRowMajor(leftDense.rows, rightDense.rows, out)
 
+object RbfKernel:
+  def apply(gamma: Double): Either[MultivarError, RbfKernel] =
+    if gamma.isFinite && gamma > 0.0 then Right(new RbfKernel(gamma))
+    else
+      Left(
+        MultivarError.InvalidKernelParameter(
+          "gamma",
+          gamma,
+          "RBF gamma must be finite and positive"
+        )
+      )
+
 object Kernel:
   val linear: Kernel =
     LinearKernel()
+
+  def rbf(gamma: Double): Either[MultivarError, RbfKernel] =
+    RbfKernel(gamma)
 
 /** A kernel input with nominal row and feature identities.
   *
@@ -293,6 +307,15 @@ final case class NystromFit(
   require(landmarkData.rows == landmarks.length, "landmark data rows must match landmarks")
   require(originalCols > 0, "Nyström original feature count must be positive")
 
+  def scores: DMat =
+    eigen.scores
+
+  def eigenvalues: DVec =
+    eigen.eigenvalues
+
+  def transform(newData: DMat): Either[MultivarError, DMat] =
+    transform(MatrixView.dense(newData))
+
   def transform(newData: MatrixView): Either[MultivarError, DMat] =
     if newData.cols != originalCols then
       Left(MultivarError.MatrixShapeMismatch(s"Nyström transform expected $originalCols columns, got ${newData.cols}"))
@@ -308,6 +331,40 @@ final case class NystromFit(
     operatorFit.transform(newData, preprocessor, kernelFunction)
 
 object Nystrom:
+  def fit(
+      input: DMat,
+      components: Int,
+      landmarks: Iterable[Int]
+  ): Either[MultivarError, NystromFit] =
+    fit(input, components, landmarks, Kernel.linear, PreprocessSpec.Pass)
+
+  def fit(
+      input: DMat,
+      components: Int,
+      landmarks: Iterable[Int],
+      kernel: Kernel
+  ): Either[MultivarError, NystromFit] =
+    fit(input, components, landmarks, kernel, PreprocessSpec.Pass)
+
+  def fit(
+      input: DMat,
+      components: Int,
+      landmarks: Iterable[Int],
+      kernel: Kernel,
+      preproc: PreprocessSpec
+  ): Either[MultivarError, NystromFit] =
+    ComponentCount(components).flatMap: checked =>
+      fit(MatrixView.dense(input), checked, landmarks, kernel, preproc)
+
+  /** Fit an RBF Nyström approximation while validating `gamma` at the boundary. */
+  def fitRbf(
+      input: DMat,
+      components: Int,
+      landmarks: Iterable[Int],
+      gamma: Double
+  ): Either[MultivarError, NystromFit] =
+    Kernel.rbf(gamma).flatMap(kernel => fit(input, components, landmarks, kernel))
+
   /** Fit a Nyström kernel eigensystem over the selected landmarks.
     *
     * Kernel-space (double) centering of the kernel matrix is NOT implemented. The

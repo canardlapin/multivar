@@ -46,6 +46,39 @@ class CpcaOperatorProblemSuite extends munit.FunSuite:
     assertEquals(problem.value.rowRelationship.role.value, OperatorRole.RowLink)
     assertEquals(problem.value.featureCovariance.role.value, OperatorRole.Covariance)
 
+  test("dense CPCA convenience exposes the requested block without unchecked extraction"):
+    val x = matrix(
+      Vector(
+        Vector(3.0, 9.0, 1.0),
+        Vector(1.0, 7.0, 4.0),
+        Vector(8.0, 2.0, 6.0),
+        Vector(5.0, 3.0, 2.0)
+      )
+    )
+    val rowDesign = matrix(
+      Vector(
+        Vector(1.0, 0.0),
+        Vector(0.0, 1.0),
+        Vector(0.0, 0.0),
+        Vector(0.0, 0.0)
+      )
+    )
+    val featureDesign = matrix(
+      Vector(
+        Vector(1.0, 0.0),
+        Vector(0.0, 0.0),
+        Vector(0.0, 1.0)
+      )
+    )
+    val convenient = Cpca.fit(x, rowDesign, featureDesign, components = 2).toOption.get
+
+    assertEquals(convenient.block.block, CpcaBlock.GxH)
+    assertEquals(convenient.scores.rows, x.rows)
+    assertEquals(convenient.loadings.rows, x.cols)
+    assertEquals(convenient.singularValues.length, 2)
+    assertMatrixClose(convenient.reconstruct.toOption.get, convenient.block.reconstructOriginal().toOption.get, 0.0)
+    assert(Cpca.fit(x, rowDesign, featureDesign, components = 0).isLeft)
+
   test("CPCA block programs report the same complete block as a direct projector oracle"):
     val x = matrix(
       Vector(

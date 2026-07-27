@@ -33,6 +33,26 @@ class LdaSuite extends munit.FunSuite:
   )
   private val rLabels = Vector(0, 0, 0, 1, 1, 1, 2, 2, 2)
 
+  test("dense LDA convenience preserves checked fitting and exposes scores"):
+    val convenient = accepted(Lda.fit(rFixture, rLabels, components = 2, ridge = 1e-8))
+    val incidence = accepted(ClassIncidence.hard(rLabels))
+    val fraction = accepted(TraceRidgeFraction(1e-8))
+    val canonicalProblem = accepted(
+      LdaProblem.fromMatrix(
+        rFixture,
+        incidence,
+        WithinScatterPolicy.FixedTraceScaledRidge(fraction)
+      )
+    )
+    val canonical = accepted(canonicalProblem.fit(ComponentCount.unsafe(2)))
+
+    assertVector(convenient.criterionValues, canonical.criterionValues.copyData.toVector, 0.0)
+    assertMatrix(convenient.project(rFixture).toOption.get, convenient.scores, 0.0)
+    assertEquals(convenient.weights.rows, rFixture.cols)
+    assert(Lda.fit(rFixture, rLabels, components = 2, ridge = 0.0).isRight)
+    assert(Lda.fit(rFixture, rLabels, components = 0).isLeft)
+    assert(Lda.fit(rFixture, rLabels, components = 2, ridge = -1.0).isLeft)
+
   test("Fisher LDA matches an independent R generalized-eigen fixture"):
     val problem = accepted(
       LdaProblem.fromMatrix(
