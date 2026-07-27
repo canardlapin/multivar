@@ -16,6 +16,11 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: sbt
+      - uses: sbt/setup-sbt@v1
+      - name: Install ripgrep
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes ripgrep
       - name: Compile and test JVM plus Scala.js
         run: |
           ./tools/check-boundary.sh
