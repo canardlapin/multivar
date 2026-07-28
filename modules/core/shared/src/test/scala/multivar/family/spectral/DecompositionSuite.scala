@@ -62,6 +62,25 @@ class DecompositionSuite extends munit.FunSuite:
     assertMatrixClose(reconstructed, input.toDense().toOption.get.toRows, 1e-9)
   }
 
+  test("Gram SVD reconstructs a wide rank-one matrix through the row-Gram branch") {
+    val input = MatrixView.dense(
+      GaleNumerics.matrixFromRows(
+        Vector(
+          Vector(1.0, 2.0, 3.0, 4.0),
+          Vector(2.0, 4.0, 6.0, 8.0)
+        )
+      )
+    )
+    assert(input.rows <= input.cols, "exercise n <= p thin Gram via XX'")
+
+    val svd = DenseSolvers.svd.decompose(input, ComponentCount(1).toOption.get).toOption.get
+    val scores = input.rightMultiply(svd.v).toOption.get
+    val reconstructed = GaleNumerics.multiply(scores, svd.v.transpose)
+
+    assertEqualsDouble(svd.singularValues(0), Math.sqrt(150.0), 1e-9)
+    assertMatrixClose(reconstructed, input.toDense().toOption.get.toRows, 1e-9)
+  }
+
   test("PCA centers data and returns an inspectable typed frame transform") {
     val input = MatrixView.dense(
       GaleNumerics.matrixFromRows(

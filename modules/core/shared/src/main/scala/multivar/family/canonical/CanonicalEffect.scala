@@ -140,7 +140,7 @@ final class CanonicalEffectProblem[Feature <: SemanticSpace] private (
         Eigen.eigSymmetricGeneralized(
           effectDense,
           regularizedDense,
-          EigenSelection.Count(featureSpace.dimension, EigenOrder.LargestAlgebraic)
+          leadingSelection(featureSpace.dimension, effectDense)
         )
       )
       converged <- adaptGale(spectrum.requireExtremeCertified)
@@ -199,7 +199,7 @@ final class CanonicalEffectProblem[Feature <: SemanticSpace] private (
           Eigen.eigSymmetricGeneralized(
             effectDense,
             regularizedDense,
-            EigenSelection.Count(featureSpace.dimension, EigenOrder.LargestAlgebraic)
+            EigenSelection.Count(components, EigenOrder.LargestAlgebraic)
           )
         )
         converged <- adaptGale(spectrum.requireExtremeCertified)
@@ -236,6 +236,13 @@ final class CanonicalEffectProblem[Feature <: SemanticSpace] private (
 
   private def prepareResidual(residualDense: DMat): Either[MultivarError, (DMat, ResidualRegularizationFit)] =
     prepareCanonicalResidual(residualDense, featureSpace.dimension, regularization)
+
+  /** Request enough leading roots to recover multiplicity without always
+    * diagonalizing the full pencil when the effect rank is smaller than n.
+    */
+  private def leadingSelection(dimension: Int, effect: DMat): EigenSelection =
+    val count = Math.min(dimension, Math.max(1, effect.rankEstimate))
+    EigenSelection.Count(count, EigenOrder.LargestAlgebraic)
 
   private def certifySpd(matrix: DMat): Either[MultivarError, OpCovariance[Feature, CertifiedSpd]] =
     certifyCanonicalResidual(featureSpace, residual, matrix, regularization, tolerance, provenance)

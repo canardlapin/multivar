@@ -484,13 +484,35 @@ object EffectTermFit:
       solver: SymmetricEigenSolver = DenseSolvers.symmetricEigen,
       tolerance: Double = 1e-10
   ): Either[MultivarError, EffectTermFit] =
+    fromDesign(label, design, None, effectColumns, rowWhitening, scope, exchangeability, solver, tolerance)
+
+  def fromDesign(
+      label: String,
+      design: DMat,
+      designWhitened: Option[DMat],
+      effectColumns: Iterable[Int],
+      rowWhitening: RowWhitening,
+      scope: EffectScope,
+      exchangeability: ExchangeabilityScheme,
+      solver: SymmetricEigenSolver,
+      tolerance: Double
+  ): Either[MultivarError, EffectTermFit] =
     if design.rows != rowWhitening.rows then
       Left(MultivarError.MatrixShapeMismatch(s"design has ${design.rows} rows but row whitening has ${rowWhitening.rows}"))
     else
       for
         effect <- RowGeometryOps.validateColumnList("effect columns", effectColumns, allowEmpty = false, Some(design.cols))
         nuisance = (0 until design.cols).filterNot(effect.contains).toVector
-        designW <- rowWhitening.whiten(design)
+        designW <- designWhitened match
+          case Some(value) =>
+            if value.rows != design.rows || value.cols != design.cols then
+              Left(
+                MultivarError.MatrixShapeMismatch(
+                  s"whitened design is ${value.rows}x${value.cols} but design is ${design.rows}x${design.cols}"
+                )
+              )
+            else Right(value)
+          case None => rowWhitening.whiten(design)
         effectDesign = RowGeometryOps.selectColumns(designW, effect)
         nuisanceDesign = RowGeometryOps.selectColumns(designW, nuisance)
         fullDesign = RowGeometryOps.concatColumns(nuisanceDesign, effectDesign)
@@ -536,7 +558,17 @@ object EffectModelFit:
         designW <- rowWhitening.whiten(design)
         modelProjector <- RowProjector.orthogonal(designW, solver, tolerance)
         termFits <- MatrixOps.traverse(terms) { case (label, columns) =>
-          EffectTermFit.fromDesign(label, design, columns, rowWhitening, solver = solver, tolerance = tolerance)
+          EffectTermFit.fromDesign(
+            label,
+            design,
+            Some(designW),
+            columns,
+            rowWhitening,
+            EffectScope.Ungrouped,
+            ExchangeabilityScheme.Rows,
+            solver,
+            tolerance
+          )
         }
       yield EffectModelFit(rowWhitening, design, designW, modelProjector, termFits)
 
@@ -696,14 +728,7 @@ object EffectOperator:
       preprocessor: FittedPreprocessor,
       processed: DMat
   ): Either[MultivarError, DMat] =
-    val zero = DMat.zeros(processed.rows, processed.cols)
-    for
-      invertible <- preprocessor.requireInvertible
-      original <- invertible.inverseTransform(MatrixView.dense(processed), policy = StoragePolicy.AllowDense)
-      originalZero <- invertible.inverseTransform(MatrixView.dense(zero), policy = StoragePolicy.AllowDense)
-      originalDense <- original.toDense(StoragePolicy.AllowDense)
-      zeroDense <- originalZero.toDense(StoragePolicy.AllowDense)
-    yield RowGeometryOps.subtract(originalDense, zeroDense)
+    preprocessor.requireInvertible.flatMap(_.inverseContributionDense(processed))
 
 private[multivar] object RowGeometryOps:
   def requireTolerance(role: String, tolerance: Double): Either[MultivarError, Unit] =
@@ -773,21 +798,25 @@ private[multivar] object RowGeometryOps:
 
   def selectRows(matrix: DMat, rows: IndexedSeq[Int]): DMat =
     val out = new Array[Double](rows.length * matrix.cols)
-    val data = matrix.copyData
     var outRow = 0
     while outRow < rows.length do
       val sourceRow = rows(outRow)
-      System.arraycopy(data, sourceRow * matrix.cols, out, outRow * matrix.cols, matrix.cols)
+      var col = 0
+      while col < matrix.cols do
+        out(outRow * matrix.cols + col) = matrix(sourceRow, col)
+        col += 1
       outRow += 1
     GaleNumerics.matrixFromRowMajor(rows.length, matrix.cols, out)
 
   def writeRows(out: Array[Double], cols: Int, rows: IndexedSeq[Int], values: DMat): Unit =
     require(rows.length == values.rows, "row write length must match value rows")
-    val data = values.copyData
     var localRow = 0
     while localRow < rows.length do
       val targetRow = rows(localRow)
-      System.arraycopy(data, localRow * cols, out, targetRow * cols, cols)
+      var col = 0
+      while col < cols do
+        out(targetRow * cols + col) = values(localRow, col)
+        col += 1
       localRow += 1
 
   def selectColumns(matrix: DMat, columns: IndexedSeq[Int]): DMat =

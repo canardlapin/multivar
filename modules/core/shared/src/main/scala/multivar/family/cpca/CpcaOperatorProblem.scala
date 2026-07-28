@@ -171,8 +171,9 @@ object CpcaOperatorConstraint:
     )
     for
       projector <- cpcaSemantic(
-        Op.fromDense(
-          GaleNumerics.multiply(q, q.transpose),
+        Op.lowRank(
+          q,
+          q,
           CoordinateEvidence.primal(space),
           CoordinateEvidence.primal(space),
           OperatorRoleWitness.constraint,

@@ -1,6 +1,7 @@
 package multivar
 package core
 
+import gale.linalg.DMat
 import gale.linalg.DVec
 
 /** Denominator convention for the standard deviations used to standardize columns.
@@ -144,6 +145,27 @@ trait FittedInvertiblePreprocessor extends FittedPreprocessor:
       policy: StoragePolicy = StoragePolicy.Operator
   ): Either[MultivarError, MatrixView]
 
+  /** Closed-form dense inverse when the fitted map is column affine; otherwise
+    * falls back to [[inverseTransform]] followed by densification.
+    */
+  private[multivar] def inverseTransformDense(
+      working: DMat,
+      columns: Option[IndexSet] = None
+  ): Either[MultivarError, DMat] =
+    inverseTransform(MatrixView.dense(working), columns, StoragePolicy.AllowDense)
+      .flatMap(_.toDense(StoragePolicy.AllowDense))
+
+  /** Map a processed contribution back to original coordinates, cancelling any
+    * fitted affine shift. Column affines use a single scaled pass; other
+    * invertible preprocessors retain the difference-of-inverses definition.
+    */
+  private[multivar] def inverseContributionDense(processed: DMat): Either[MultivarError, DMat] =
+    val zero = DMat.zeros(processed.rows, processed.cols)
+    for
+      original <- inverseTransformDense(processed)
+      originalZero <- inverseTransformDense(zero)
+    yield MatrixOps.subtract(original, originalZero)
+
   override def requireInvertible: Either[MultivarError, FittedInvertiblePreprocessor] =
     Right(this)
 
@@ -256,6 +278,49 @@ final class InvertibleColumnAffine private[core] (
       policy: StoragePolicy
   ): Either[MultivarError, MatrixView] =
     inverse.transform(input, columns, policy)
+
+  override private[multivar] def inverseTransformDense(
+      working: DMat,
+      columns: Option[IndexSet]
+  ): Either[MultivarError, DMat] =
+    columns match
+      case None =>
+        if working.cols != inverse.inputCols then
+          Left(
+            MultivarError.MatrixShapeMismatch(
+              s"input has ${working.cols} columns but preprocessor expects ${inverse.inputCols}"
+            )
+          )
+        else Right(MatrixView.materializeAffine(working, inverse.scale, inverse.shift))
+      case Some(indices) =>
+        for
+          checked <- MatrixView.requireColumnIndexSet(indices, inputCols)
+          _ <-
+            if working.cols != checked.length then
+              Left(
+                MultivarError.MatrixShapeMismatch(
+                  s"input has ${working.cols} columns but column selection has ${checked.length}"
+                )
+              )
+            else Right(())
+        yield
+          MatrixView.materializeAffine(
+            working,
+            MatrixView.selectVector(inverse.scale, checked),
+            MatrixView.selectVector(inverse.shift, checked)
+          )
+
+  override private[multivar] def inverseContributionDense(processed: DMat): Either[MultivarError, DMat] =
+    if processed.cols != inverse.inputCols then
+      Left(
+        MultivarError.MatrixShapeMismatch(
+          s"input has ${processed.cols} columns but preprocessor expects ${inverse.inputCols}"
+        )
+      )
+    else
+      Right(
+        MatrixView.materializeAffine(processed, inverse.scale, MatrixView.zeros(inverse.scale.length))
+      )
 
   override def restrict(columns: IndexSet): Either[MultivarError, FittedPreprocessor] =
     forward.restrict(columns)

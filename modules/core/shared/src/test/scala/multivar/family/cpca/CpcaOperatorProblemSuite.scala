@@ -117,7 +117,9 @@ class CpcaOperatorProblemSuite extends munit.FunSuite:
       .flatMap(_.toDense())
       .toOption
       .get
+    val viaDense = CpcaFit.preprocessorOf(fit).inverseTransformDense(working).toOption.get
     assertMatrixClose(original, restored, 1e-10)
+    assertMatrixClose(original, viaDense, 1e-10)
 
     val collapsing = PreprocessSpec.multiplyColumns(Vector(1.0, 0.0, 1.0)).toOption.get
     Cpca.fit(x, rowDesign, featureDesign, components = 1, preprocessing = collapsing) match

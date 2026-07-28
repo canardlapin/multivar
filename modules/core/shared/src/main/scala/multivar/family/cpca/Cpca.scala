@@ -351,9 +351,7 @@ final class CpcaFit private[multivar] (
 
   /** Reconstruction in original feature coordinates. */
   def reconstruct(components: Option[ComponentCount] = None): Either[MultivarError, DMat] =
-    reconstructWorking(components).flatMap { working =>
-      preprocessor.inverseTransform(MatrixView.dense(working)).flatMap(_.toDense(StoragePolicy.AllowDense))
-    }
+    reconstructWorking(components).flatMap(working => preprocessor.inverseTransformDense(working))
 
 object CpcaFit:
   private[multivar] def blockOf(fit: CpcaFit): CpcaBlockResult = fit.blockResult

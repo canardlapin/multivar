@@ -170,12 +170,7 @@ final class FittedBidirectionalTransform private (
             else Some(selectedFeatures)
           for
             invertible <- analysis.preprocessor.requireInvertible
-            restored <- invertible.inverseTransform(
-              MatrixView.dense(working),
-              columns,
-              StoragePolicy.AllowDense
-            )
-            dense <- restored.toDense(StoragePolicy.AllowDense)
+            dense <- invertible.inverseTransformDense(working, columns)
           yield dense
     yield
       ReconstructionResult(

@@ -6,6 +6,8 @@ import multivar.optimization.*
 
 import gale.linalg.DMat
 import gale.linalg.DVec
+import gale.spectral.EigenOrder
+import gale.spectral.EigenSelection
 
 class GpcaProblemSuite extends munit.FunSuite:
 
@@ -104,6 +106,49 @@ class GpcaProblemSuite extends munit.FunSuite:
     assertVector(convenient.singularValues, canonical.singularValues.copyData.toVector, 0.0)
     assertMatrix(convenient.transform(x).toOption.get, convenient.scores, 0.0)
     assert(Gpca.fit(x, components = 0, rowMetric, featureMetric, GpcaCentering.None).isLeft)
+
+  test("diagonal feature cometric carries the analytic minimum eigenvalue after Cholesky inversion") {
+    val weights = DVec.fromSeq(Seq(2.0, 4.0, 8.0))
+    val x = GaleNumerics.matrixFromRows(
+      Seq(
+        Seq(1.0, 2.0, 0.0),
+        Seq(3.0, -1.0, 1.0),
+        Seq(0.5, 4.0, 2.0),
+        Seq(-2.0, 1.5, 3.0)
+      )
+    )
+    val rowMetric = acceptedMv(MetricSpec.identity(4))
+    val featureMetric = acceptedMv(MetricSpec.diagonal(weights))
+    val prepared = acceptedMv(
+      DynamicGpcaProblem.from(
+        MatrixView.dense(x),
+        MvSpace.of("gpca.cometric.rows", SpaceRole.Samples, x.rows).toOption.get,
+        MvSpace.of("gpca.cometric.features", SpaceRole.Observed, x.cols).toOption.get,
+        rowMetric,
+        featureMetric,
+        value("gpca.cometric.input"),
+        SemanticProvenance.source("gpca-cometric-test")
+      )
+    )
+    val cometricDense = acceptedSemantic(prepared.value.featureCometric.toDense)
+
+    var index = 0
+    while index < weights.length do
+      assertEqualsDouble(cometricDense(index, index), 1.0 / weights(index), 1e-12)
+      assertEqualsDouble(cometricDense(index, (index + 1) % weights.length), 0.0, 1e-12)
+      index += 1
+
+    val smallest = DenseSolvers.symmetricEigen
+      .decompose(cometricDense, EigenSelection.Count(1, EigenOrder.SmallestAlgebraic))
+      .toOption
+      .get
+    val expectedMinimum = 1.0 / weights(2)
+    assertEqualsDouble(smallest.values(0), expectedMinimum, 1e-10)
+
+    val fit = acceptedMv(prepared.fit(ComponentCount.unsafe(1)))
+    assert(fit.generalizedEigenvalues(0).isFinite)
+    assert(fit.singularValues(0).isFinite)
+  }
 
   test("dense GPCA Auto centers under an identity row metric and rejects nonuniform Auto"):
     val x = GaleNumerics.matrixFromRows(

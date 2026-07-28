@@ -277,6 +277,69 @@ class SparsePreprocessingSuite extends munit.FunSuite:
     assertVectorClose(summary.scale, stats.sampleStandardDeviations.toOption.get, 1e-12)
   }
 
+  test("dense column-affine inverse matches the view inverseTransform path") {
+    val fitted = PreprocessSpec.Standardize().fitInvertible(sparseView).toOption.get
+    val working = fitted.transform(sparseView).toOption.get.toDense(StoragePolicy.AllowDense).toOption.get
+
+    val viaView =
+      fitted
+        .inverseTransform(MatrixView.dense(working), policy = StoragePolicy.AllowDense)
+        .flatMap(_.toDense(StoragePolicy.AllowDense))
+        .toOption
+        .get
+    val viaDense = fitted.inverseTransformDense(working).toOption.get
+
+    assertMatrixClose(viaDense, viaView.toRows, 1e-12)
+  }
+
+  test("dense column-affine inverse with column selection matches the view path") {
+    val fitted = PreprocessSpec.Center.fitInvertible(sparseView).toOption.get
+    val columnSet = IndexSet.from(Vector(2, 0), IndexAxis.Feature).toOption.get
+    val subset = sparseView.selectColumns(columnSet).toOption.get
+    val working = fitted.transform(subset, columns = Some(columnSet)).toOption.get
+      .toDense(StoragePolicy.AllowDense)
+      .toOption
+      .get
+
+    val viaView =
+      fitted
+        .inverseTransform(MatrixView.dense(working), columns = Some(columnSet), policy = StoragePolicy.AllowDense)
+        .flatMap(_.toDense(StoragePolicy.AllowDense))
+        .toOption
+        .get
+    val viaDense = fitted.inverseTransformDense(working, columns = Some(columnSet)).toOption.get
+
+    assertMatrixClose(viaDense, viaView.toRows, 1e-12)
+  }
+
+  test("column-affine inverseContributionDense cancels fitted shift in one pass") {
+    val fitted = PreprocessSpec.Standardize().fitInvertible(sparseView).toOption.get
+    val processed = fitted.transform(sparseView).toOption.get.toDense(StoragePolicy.AllowDense).toOption.get
+    val zero = DMat.zeros(processed.rows, processed.cols)
+
+    val original = fitted.inverseTransformDense(processed).toOption.get
+    val originalZero = fitted.inverseTransformDense(zero).toOption.get
+    val viaDifference = MatrixOps.subtract(original, originalZero)
+    val viaContribution = fitted.inverseContributionDense(processed).toOption.get
+    val fullInverse = fitted.inverseTransformDense(processed).toOption.get
+
+    assertMatrixClose(viaContribution, viaDifference.toRows, 1e-12)
+    assert(!matricesClose(viaContribution, fullInverse, 1e-12), "contribution must cancel shift, not match full inverse")
+  }
+
+  private def matricesClose(left: DMat, right: DMat, tol: Double): Boolean =
+    left.rows == right.rows && left.cols == right.cols && {
+      var row = 0
+      var ok = true
+      while row < left.rows && ok do
+        var col = 0
+        while col < left.cols && ok do
+          ok = math.abs(left(row, col) - right(row, col)) <= tol
+          col += 1
+        row += 1
+      ok
+    }
+
   test("the variance convention changes the fitted scale") {
     val sample = PreprocessSpec.Standardize().fitInvertible(sparseView).toOption.get
     val population =

@@ -3,6 +3,7 @@ package core
 
 import scala.collection.mutable.ArrayBuffer
 
+import gale.backend.Backend.given
 import gale.linalg.DMat
 import gale.linalg.DVec
 import gale.linalg.MutableDVec
@@ -297,17 +298,20 @@ final class DenseMatrixView private (val value: DMat) extends MatrixView:
       _ <- MatrixView.requireMutableVectorLength("matrix-vector output", output, expectedOutput)
       _ <- if scaled then MatrixView.requireVectorLength("matrix-vector input scale", scale, expectedInput) else Right(())
     yield
-      var target = 0
-      while target < expectedOutput do
-        var sum = 0.0
-        var source = 0
-        while source < expectedInput do
-          val coefficient = if transpose then value(source, target) else value(target, source)
-          val factor = if scaled then scale(source) else 1.0
-          sum += coefficient * input(source) * factor
-          source += 1
-        output(target) = sum
-        target += 1
+      if !scaled then
+        val matrix = if transpose then value.t else value
+        matrix.mulInto(input, output)
+      else
+        var target = 0
+        while target < expectedOutput do
+          var sum = 0.0
+          var source = 0
+          while source < expectedInput do
+            val coefficient = if transpose then value(source, target) else value(target, source)
+            sum += coefficient * input(source) * scale(source)
+            source += 1
+          output(target) = sum
+          target += 1
 
   override def transposeMultiply(other: MatrixView): Either[MultivarError, DMat] =
     MatrixView.requireSharedRows(rows, other.rows).flatMap { _ =>

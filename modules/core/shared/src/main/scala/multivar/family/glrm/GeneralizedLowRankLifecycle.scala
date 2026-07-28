@@ -521,10 +521,13 @@ object GeneralizedLowRankLifecycle:
       smoothness,
       assumption("block-lipschitz-gradient")
     )
-    PalmBlockOracle.from(assumptions)(
+    PalmBlockOracle.fromWithSweep(assumptions)(
+      stationarity = (state, _sweep) =>
+        proximalResidual(program, latent, entries, state, parameter, penalties, smoothness.doubleValue)
+          .map(_._3),
       update = (state, iteration) =>
-        proximalPoint(program, latent, entries, state, parameter, penalties, smoothness.doubleValue)
-          .flatMap: next =>
+        proximalResidual(program, latent, entries, state, parameter, penalties, smoothness.doubleValue).flatMap {
+          case (_, next, _) =>
             PalmBlockUpdate
               .from(
                 next,
@@ -538,14 +541,52 @@ object GeneralizedLowRankLifecycle:
                 inexactness = 0.0
               )
               .left
-              .map(_.message),
-      stationarity = state =>
-        for
-          current <- state.block(parameter).left.map(_.message)
-          next <- proximalPoint(program, latent, entries, state, parameter, penalties, smoothness.doubleValue)
-        yield scaledDistance(current.values, next, smoothness.doubleValue),
+              .map(_.message)
+        },
       normalization = _ => Right(0.0)
     )
+
+  private def proximalResidual[
+      Rows <: SemanticSpace,
+      Feature <: SemanticSpace,
+      Latent <: SemanticSpace
+  ](
+      program: GeneralizedLowRankModelProgram[Rows, Feature],
+      latent: SpaceEvidence[Latent],
+      entries: Vector[GlrmPalmEntry],
+      state: PalmState,
+      parameter: ParameterId,
+      penalties: GlrmPenaltyWeights,
+      smoothness: Double
+  ): Either[String, (DMat, DMat, Double)] =
+    for
+      current <- state.block(parameter).left.map(_.message).map(_.values)
+      gradient <- smoothGradient(program, latent, entries, state, parameter)
+    yield
+      val next = applyProximal(current, gradient, penalties, smoothness)
+      (current, next, scaledDistance(current, next, smoothness))
+
+  private def applyProximal(
+      current: DMat,
+      gradient: DMat,
+      penalties: GlrmPenaltyWeights,
+      smoothness: Double
+  ): DMat =
+    val values = new Array[Double](current.rows * current.cols)
+    val step = 1.0 / smoothness
+    var row = 0
+    while row < current.rows do
+      var column = 0
+      while column < current.cols do
+        val forward = current(row, column) - step * gradient(row, column)
+        val thresholded =
+          if forward > step * penalties.l1 then forward - step * penalties.l1
+          else if forward < -step * penalties.l1 then forward + step * penalties.l1
+          else 0.0
+        values(row * current.cols + column) = thresholded / (1.0 + step * penalties.ridge)
+        column += 1
+      row += 1
+    GaleNumerics.matrixFromRowMajor(current.rows, current.cols, values)
 
   private def proximalPoint[
       Rows <: SemanticSpace,
@@ -560,25 +601,7 @@ object GeneralizedLowRankLifecycle:
       penalties: GlrmPenaltyWeights,
       smoothness: Double
   ): Either[String, DMat] =
-    for
-      current <- state.block(parameter).left.map(_.message)
-      gradient <- smoothGradient(program, latent, entries, state, parameter)
-    yield
-      val values = new Array[Double](current.values.rows * current.values.cols)
-      val step = 1.0 / smoothness
-      var row = 0
-      while row < current.values.rows do
-        var column = 0
-        while column < current.values.cols do
-          val forward = current.values(row, column) - step * gradient(row, column)
-          val thresholded =
-            if forward > step * penalties.l1 then forward - step * penalties.l1
-            else if forward < -step * penalties.l1 then forward + step * penalties.l1
-            else 0.0
-          values(row * current.values.cols + column) = thresholded / (1.0 + step * penalties.ridge)
-          column += 1
-        row += 1
-      GaleNumerics.matrixFromRowMajor(current.values.rows, current.values.cols, values)
+    proximalResidual(program, latent, entries, state, parameter, penalties, smoothness).map(_._2)
 
   private def smoothGradient[
       Rows <: SemanticSpace,
@@ -618,24 +641,35 @@ object GeneralizedLowRankLifecycle:
     val rows = if parameter == rowParameter then rowCodes.rows else decoder.rows
     val columns = if parameter == rowParameter then rowCodes.cols else decoder.cols
     val result = Array.fill(rows * columns)(0.0)
+    val rowData = rowCodes.copyData
+    val decoderData = decoder.copyData
+    val rowStride = rowCodes.cols
+    val decoderCols = decoder.cols
+    val maxNaturalWidth =
+      if entries.isEmpty then 0
+      else entries.map(entry => layout.width(entry.feature)).max
+    val natural = Array.ofDim[Double](maxNaturalWidth)
     var index = 0
     var failure = Option.empty[String]
     while index < entries.length && failure.isEmpty do
       val entry = entries(index)
       val offset = layout.offset(entry.feature)
       val width = layout.width(entry.feature)
-      val natural = new Array[Double](width)
       var output = 0
       while output < width do
         var value = 0.0
         var latent = 0
         while latent < latentDimension do
-          value += rowCodes(entry.row, latent) * decoder(latent, offset + output)
+          value += rowData(entry.row * rowStride + latent) * decoderData(latent * decoderCols + offset + output)
           latent += 1
         natural(output) = value
         output += 1
       entry.specification.loss
-        .naturalGradient(entry.specification.id, entry.embedding, GaleNumerics.vectorFromArray(natural)) match
+        .naturalGradient(
+          entry.specification.id,
+          entry.embedding,
+          GaleNumerics.vectorFromArray(Array.tabulate(width)(natural(_)))
+        ) match
         case Left(error) => failure = Some(error.message)
         case Right(naturalGradient) =>
           output = 0
@@ -644,9 +678,9 @@ object GeneralizedLowRankLifecycle:
             var latent = 0
             while latent < latentDimension do
               if parameter == rowParameter then
-                result(entry.row * columns + latent) += weighted * decoder(latent, offset + output)
+                result(entry.row * columns + latent) += weighted * decoderData(latent * decoderCols + offset + output)
               else
-                result(latent * columns + offset + output) += weighted * rowCodes(entry.row, latent)
+                result(latent * columns + offset + output) += weighted * rowData(entry.row * rowStride + latent)
               latent += 1
             output += 1
       index += 1

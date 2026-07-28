@@ -6,6 +6,8 @@ import multivar.core.*
 
 import gale.linalg.DMat
 import gale.linalg.DVec
+import gale.spectral.EigenOrder
+import gale.spectral.EigenSelection
 
 /** Algorithm used to extract PLS latent components. */
 enum PlsAlgorithm:
@@ -193,9 +195,12 @@ object PlsRegression:
     val U = Array.ofDim[Double](n * aMax)
     val Qt = Array.ofDim[Double](aMax * m)
     var S = GaleNumerics.transposeMultiply(x, y)
+    val sBuf = S.copyData
     var a = 0
     var failure = Option.empty[MultivarError]
     while a < aMax && failure.isEmpty do
+      // Rebuild the live cross-product view from the reused buffer.
+      S = GaleNumerics.matrixFromRowMajor(p, m, sBuf)
       computeQa(S, m, p, eigenSolver) match
         case Left(error) => failure = Some(error)
         case Right(qInit) =>
@@ -203,17 +208,17 @@ object PlsRegression:
           var ta = matVec(x, ra)
           // Working matrices may already be centered; keep the R mean-correction
           // so a non-centered request stays consistent with pls::simpls.fit.
-          ta = centerVector(ta)
+          centerVectorInPlace(ta)
           val tnorm = euclideanNorm(ta)
           if !(tnorm > 0.0 && tnorm.isFinite) then
             failure = Some(MultivarError.SolverFailed(s"SIMPLS component ${a + 1} produced a zero score"))
           else
-            ta = scaleVector(ta, 1.0 / tnorm)
-            ra = scaleVector(ra, 1.0 / tnorm)
+            scaleVectorInPlace(ta, 1.0 / tnorm)
+            scaleVectorInPlace(ra, 1.0 / tnorm)
             orientWeight(ra) match
               case (orientedR, flip) =>
                 ra = orientedR
-                if flip then ta = scaleVector(ta, -1.0)
+                if flip then scaleVectorInPlace(ta, -1.0)
             val pa = transposeMatVec(x, ta)
             val qa = transposeMatVec(y, ta)
             var va = pa.clone()
@@ -222,8 +227,8 @@ object PlsRegression:
             if !(vnorm > 0.0 && vnorm.isFinite) then
               failure = Some(MultivarError.SolverFailed(s"SIMPLS component ${a + 1} produced a singular loading basis"))
             else
-              va = scaleVector(va, 1.0 / vnorm)
-              S = deflateCross(S, va)
+              scaleVectorInPlace(va, 1.0 / vnorm)
+              deflateCrossInPlace(sBuf, p, m, va)
               copyColumn(R, p, a, ra)
               copyColumn(P, p, a, pa)
               copyColumn(V, p, a, va)
@@ -283,16 +288,17 @@ object PlsRegression:
       predictors: Int,
       eigenSolver: SymmetricEigenSolver
   ): Either[MultivarError, Array[Double]] =
+    val top1 = EigenSelection.Count(1, EigenOrder.LargestAlgebraic)
     if responses == 1 then Right(Array(1.0))
     else if responses < predictors then
       // eigen(S'S): GaleNumerics.crossProduct(S) = S' S
       val sts = GaleNumerics.crossProduct(s)
-      LinalgErrorAdapter.adapt(eigenSolver.decompose(MatrixOps.symmetrize(sts))).map: eigen =>
+      LinalgErrorAdapter.adapt(eigenSolver.decompose(MatrixOps.symmetrize(sts), top1)).map: eigen =>
         columnOf(eigen.vectors, 0)
     else
       // eigen(SS'): crossProduct(S') = S S'
       val sst = GaleNumerics.crossProduct(s.transpose)
-      LinalgErrorAdapter.adapt(eigenSolver.decompose(MatrixOps.symmetrize(sst))).flatMap: eigen =>
+      LinalgErrorAdapter.adapt(eigenSolver.decompose(MatrixOps.symmetrize(sst), top1)).flatMap: eigen =>
         val left = columnOf(eigen.vectors, 0)
         val qa = transposeMatVec(s, left)
         val norm = euclideanNorm(qa)
@@ -300,21 +306,26 @@ object PlsRegression:
           Left(MultivarError.SolverFailed("SIMPLS Y-weight is zero"))
         else Right(scaleVector(qa, 1.0 / norm))
 
-  /** `S <- S - v (v' S)`. */
-  private def deflateCross(s: DMat, v: Array[Double]): DMat =
-    val vs = transposeMatVec(s, v)
-    val out = s.copyData
-    val p = s.rows
-    val m = s.cols
+  /** `S <- S - v (v' S)` into a reused row-major buffer. */
+  private def deflateCrossInPlace(sBuf: Array[Double], rows: Int, cols: Int, v: Array[Double]): Unit =
+    val vs = new Array[Double](cols)
     var col = 0
-    while col < m do
+    while col < cols do
+      var acc = 0.0
+      var row = 0
+      while row < rows do
+        acc += v(row) * sBuf(row * cols + col)
+        row += 1
+      vs(col) = acc
+      col += 1
+    col = 0
+    while col < cols do
       val scale = vs(col)
       var row = 0
-      while row < p do
-        out(row * m + col) -= v(row) * scale
+      while row < rows do
+        sBuf(row * cols + col) -= v(row) * scale
         row += 1
       col += 1
-    GaleNumerics.matrixFromRowMajor(p, m, out)
 
   private def subtractProjection(vector: Array[Double], basis: Array[Double], rows: Int, cols: Int): Array[Double] =
     val out = vector.clone()
@@ -370,26 +381,27 @@ object PlsRegression:
       col += 1
     out
 
-  private def centerVector(values: Array[Double]): Array[Double] =
+  private def centerVectorInPlace(values: Array[Double]): Unit =
     var sum = 0.0
     var i = 0
     while i < values.length do
       sum += values(i)
       i += 1
     val mean = sum / values.length.toDouble
-    val out = new Array[Double](values.length)
     i = 0
     while i < values.length do
-      out(i) = values(i) - mean
+      values(i) -= mean
       i += 1
-    out
 
-  private def scaleVector(values: Array[Double], factor: Double): Array[Double] =
-    val out = new Array[Double](values.length)
+  private def scaleVectorInPlace(values: Array[Double], factor: Double): Unit =
     var i = 0
     while i < values.length do
-      out(i) = values(i) * factor
+      values(i) *= factor
       i += 1
+
+  private def scaleVector(values: Array[Double], factor: Double): Array[Double] =
+    val out = values.clone()
+    scaleVectorInPlace(out, factor)
     out
 
   private def euclideanNorm(values: Array[Double]): Double =

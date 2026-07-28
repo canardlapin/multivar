@@ -120,8 +120,9 @@ final class PairedOperatorProblem[
         crossScale,
         sourceNormalization,
         targetNormalization,
-        solver,
-        eigenSolver
+        DMat.eye(sourceFeatures.dimension),
+        DMat.eye(targetFeatures.dimension),
+        solver
       )
     yield fit
 
@@ -134,19 +135,21 @@ final class PairedOperatorProblem[
   ): Either[MultivarError, PairedOperatorFit[SourceFeature, TargetFeature, ? <: SemanticSpace]] =
     for
       _ <- requireScale(covarianceScale)
-      sourceNormalization <- covarianceNormalization(
+      (sourceNormalization, sourceInverseHalf) <- covarianceNormalization(
         sourceFeatures,
         sourceMarginal,
         covarianceScale,
         regularization.x.value,
-        "cca-source-normalization"
+        "cca-source-normalization",
+        eigenSolver
       )
-      targetNormalization <- covarianceNormalization(
+      (targetNormalization, targetInverseHalf) <- covarianceNormalization(
         targetFeatures,
         targetMarginal,
         covarianceScale,
         regularization.y.value,
-        "cca-target-normalization"
+        "cca-target-normalization",
+        eigenSolver
       )
       fit <- solve(
         PairedProgramKind.Cca(regularization),
@@ -154,8 +157,9 @@ final class PairedOperatorProblem[
         covarianceScale,
         sourceNormalization,
         targetNormalization,
-        solver,
-        eigenSolver
+        sourceInverseHalf,
+        targetInverseHalf,
+        solver
       )
     yield fit
 
@@ -168,12 +172,13 @@ final class PairedOperatorProblem[
   ): Either[MultivarError, PairedOperatorFit[SourceFeature, TargetFeature, ? <: SemanticSpace]] =
     for
       _ <- requireScale(ridgeScale)
-      sourceNormalization <- covarianceNormalization(
+      (sourceNormalization, sourceInverseHalf) <- covarianceNormalization(
         sourceFeatures,
         sourceMarginal,
         1.0,
         pairedRidgeValue(regularization) * ridgeScale,
-        "rrr-source-normalization"
+        "rrr-source-normalization",
+        eigenSolver
       )
       targetNormalization <- identityCometric(targetFeatures, "rrr-target-normalization")
       fit <- solve(
@@ -182,8 +187,9 @@ final class PairedOperatorProblem[
         1.0,
         sourceNormalization,
         targetNormalization,
-        solver,
-        eigenSolver
+        sourceInverseHalf,
+        DMat.eye(targetFeatures.dimension),
+        solver
       )
     yield fit
 
@@ -196,8 +202,9 @@ final class PairedOperatorProblem[
       crossScale: Double,
       sourceNormalization: Op[Dual[SourceFeature], Primal[SourceFeature], RS, CertifiedSpd],
       targetNormalization: Op[Dual[TargetFeature], Primal[TargetFeature], RT, CertifiedSpd],
-      solver: SvdSolver,
-      eigenSolver: SymmetricEigenSolver
+      sourceInverseHalf: DMat,
+      targetInverseHalf: DMat,
+      solver: SvdSolver
   ): Either[MultivarError, PairedOperatorFit[SourceFeature, TargetFeature, ? <: SemanticSpace]] =
     val limit = Math.min(sourceFeatures.dimension, targetFeatures.dimension)
     if components.value > limit then Left(MultivarError.InvalidComponentRequest(components.value, limit))
@@ -206,8 +213,6 @@ final class PairedOperatorProblem[
         crossDense <- pairedSemantic(cross.toDense)
         sourceDense <- pairedSemantic(sourceNormalization.toDense)
         targetDense <- pairedSemantic(targetNormalization.toDense)
-        sourceInverseHalf <- MatrixOps.inverseSquareRoot(sourceDense, eigenSolver, 1e-12)
-        targetInverseHalf <- MatrixOps.inverseSquareRoot(targetDense, eigenSolver, 1e-12)
         scaledCrossDense = MatrixOps.scale(crossDense, crossScale)
         whitened = GaleNumerics.multiply(sourceInverseHalf, GaleNumerics.multiply(scaledCrossDense, targetInverseHalf))
         svd <- solver.decompose(MatrixView.dense(whitened), components)
@@ -416,13 +421,23 @@ final class PairedOperatorProblem[
       marginal: Op[Dual[Feature], Primal[Feature], CovarianceOperatorRole, UncheckedEvidence],
       scale: Double,
       ridge: Double,
-      label: String
-  ): Either[MultivarError, Op[Dual[Feature], Primal[Feature], CovarianceOperatorRole, CertifiedSpd]] =
+      label: String,
+      eigenSolver: SymmetricEigenSolver
+  ): Either[MultivarError, (Op[Dual[Feature], Primal[Feature], CovarianceOperatorRole, CertifiedSpd], DMat)] =
     for
       dense <- pairedSemantic(marginal.toDense)
       realized = MatrixOps.addRidge(MatrixOps.scale(dense, scale), ridge)
-      certified <- certifySpd(feature, realized, OperatorRoleWitness.covariance, label, marginal.valueIdentity)
-    yield certified
+      // One eigen: SPD evidence and B^{-1/2}. FormCertificates.spd used to pay a
+      // second full decomposition before whitening.
+      certifiedAndRoot <- certifySpdWithInverseSquareRoot(
+        feature,
+        realized,
+        OperatorRoleWitness.covariance,
+        label,
+        marginal.valueIdentity,
+        eigenSolver
+      )
+    yield certifiedAndRoot
 
   private def identityCometric[
       Feature <: SemanticSpace
@@ -430,15 +445,39 @@ final class PairedOperatorProblem[
       feature: SpaceEvidence[Feature],
       label: String
   ): Either[MultivarError, OpCometric[Feature, CertifiedSpd]] =
-    certifySpd(
-      feature,
-      DMat.eye(feature.dimension),
-      OperatorRoleWitness.cometric,
-      label,
-      ValueIdentity.source(ValueId.unsafe(s"${feature.id.value}.$label-source"))
-    )
+    // Exact I needs no spectral work: λ_min = 1, residual = 0, ‖I‖_F = √n.
+    val source = ValueIdentity.source(ValueId.unsafe(s"${feature.id.value}.$label-source"))
+    val identity = ValueIdentity.derived(label, source)
+    val dim = feature.dimension
+    for
+      tolerance <- pairedSemantic(CertificateTolerance.from(1e-12, 1e-12))
+      context <- pairedSemantic(
+        CertificateContext.from(
+          tolerance,
+          CertificateNorm.Frobenius,
+          "paired-identity-cometric",
+          "analytic",
+          NumericalPrecision.Float64
+        )
+      )
+      linear <- pairedSemantic(
+        Lin.fromDenseMatrix(
+          DMat.eye(dim),
+          CoordinateEvidence.dual(feature),
+          CoordinateEvidence.primal(feature),
+          identity,
+          provenance.append(SemanticProvenanceEvent.Derived(label, Vector(source)))
+        )
+      )
+      certificate = Certificate.unsafe[SpdProperty](
+        identity,
+        CertificateClaim.PositiveDefinite(1.0, 0.0, Math.sqrt(dim.toDouble)),
+        context
+      )
+      certified <- pairedSemantic(Op.certifiedSpd(Op.fromLin(linear, OperatorRoleWitness.cometric), certificate))
+    yield certified
 
-  private def certifySpd[
+  private def certifySpdWithInverseSquareRoot[
       Feature <: SemanticSpace,
       R <: OperatorRoleTag
   ](
@@ -446,10 +485,13 @@ final class PairedOperatorProblem[
       dense: DMat,
       role: OperatorRoleWitness[R],
       label: String,
-      source: ValueIdentity
-  ): Either[MultivarError, Op[Dual[Feature], Primal[Feature], R, CertifiedSpd]] =
+      source: ValueIdentity,
+      eigenSolver: SymmetricEigenSolver
+  ): Either[MultivarError, (Op[Dual[Feature], Primal[Feature], R, CertifiedSpd], DMat)] =
     val identity = ValueIdentity.derived(label, source)
     for
+      _ <- MatrixOps.checkFinite(label, dense)
+      _ <- MatrixOps.checkSymmetric(dense, 1e-12)
       tolerance <- pairedSemantic(CertificateTolerance.from(1e-12, 1e-12))
       context <- pairedSemantic(
         CertificateContext.from(
@@ -460,6 +502,18 @@ final class PairedOperatorProblem[
           NumericalPrecision.Float64
         )
       )
+      symmetrized = MatrixOps.symmetrize(dense)
+      eigen <- LinalgErrorAdapter.adapt(eigenSolver.decompose(symmetrized))
+      maximum = eigen.values(0)
+      minimum = eigen.values(eigen.values.length - 1)
+      scale = frobeniusNorm(dense)
+      residual = symmetryResidual(dense)
+      cutoff = context.tolerance.threshold(Math.max(scale, Math.max(Math.abs(maximum), Math.abs(minimum))))
+      _ <-
+        if minimum <= cutoff then
+          Left(MultivarError.NonInvertibleValue("positive-definite eigenvalue", eigen.values.length - 1, minimum))
+        else Right(())
+      inverseHalf <- MatrixOps.inverseSquareRootFromEigen(eigen, 1e-12)
       linear <- pairedSemantic(
         Lin.fromDenseMatrix(
           dense,
@@ -469,9 +523,37 @@ final class PairedOperatorProblem[
           provenance.append(SemanticProvenanceEvent.Derived(label, Vector(source)))
         )
       )
-      certificate <- pairedSemantic(FormCertificates.spd(linear, context))
+      certificate = Certificate.unsafe[SpdProperty](
+        identity,
+        CertificateClaim.PositiveDefinite(minimum, residual, scale),
+        context
+      )
       certified <- pairedSemantic(Op.certifiedSpd(Op.fromLin(linear, role), certificate))
-    yield certified
+    yield (certified, inverseHalf)
+
+  private def frobeniusNorm(matrix: DMat): Double =
+    var sum = 0.0
+    var row = 0
+    while row < matrix.rows do
+      var col = 0
+      while col < matrix.cols do
+        val value = matrix(row, col)
+        sum += value * value
+        col += 1
+      row += 1
+    Math.sqrt(sum)
+
+  private def symmetryResidual(matrix: DMat): Double =
+    var sum = 0.0
+    var row = 0
+    while row < matrix.rows do
+      var col = 0
+      while col < matrix.cols do
+        val difference = matrix(row, col) - matrix(col, row)
+        sum += difference * difference
+        col += 1
+      row += 1
+    Math.sqrt(sum)
 
   private def requireScale(value: Double): Either[MultivarError, Unit] =
     if value.isFinite && value > 0.0 then Right(())

@@ -96,6 +96,31 @@ class PalmConvergenceSuite extends munit.FunSuite:
       Vector(fit.certificate)
     )
 
+  test("PALM sweep-end context reaches block stationarity probes") {
+    var xSweep = Option.empty[PalmSweepEnd]
+    var ySweep = Option.empty[PalmSweepEnd]
+    val fixture = sweepContextFixture("sweep-end", (parameter, sweep) =>
+      if parameter.value.endsWith("-x") then xSweep = sweep
+      else ySweep = sweep
+    )
+    val solver = PalmSolver.from(fixture.criticalAdmission(PalmSubproblemPolicy.Exact))
+    val initialization = fixture.initialization("sweep-start", 2.0, 0.5)
+    val tolerance = accepted(CertificateTolerance.from(1e-9, 1e-8))
+    val config = PalmConfig(
+      IterationBudget.unsafe(1),
+      tolerance,
+      PalmDescentPolicy.SufficientDecrease(PalmDecreaseCoefficient.unsafe(0.05))
+    )
+    val fit = accepted(solver.solve(initialization, config))
+
+    assertEquals(fit.receipt.traces.length, 1)
+    assert(xSweep.isDefined, "x block stationarity should receive sweep-end context")
+    assert(ySweep.isDefined, "y block stationarity should receive sweep-end context")
+    assertEquals(xSweep.get.lastUpdated, fixture.y)
+    assertEquals(ySweep.get.lastUpdated, fixture.y)
+    assertEquals(xSweep.get.updates.keySet, fixture.problem.blocks.map(_.parameter).toSet)
+  }
+
   test("coordinatewise convergence needs no KL claim and never becomes a global claim"):
     val fixture = biconvexFixture("coordinatewise")
     val admission = accepted(
@@ -396,6 +421,107 @@ class PalmConvergenceSuite extends munit.FunSuite:
             .left
             .map(_.message),
       stationarity = state => gradient(state, x, y, ridge, forX = false),
+      normalization = _ => Right(0.0)
+    )
+    val problem = accepted(
+      PalmProblem.from(
+        MathematicalContractCatalog.generalizedLowRankModel,
+        program,
+        data,
+        ObservationMaskIdentity.Complete,
+        Vector(objectiveIdentity, xFunctional, yFunctional),
+        objective,
+        Vector(xOracle, yOracle)
+      )
+    )
+    val coercive = PalmLevelSetWitness.coercive(
+      program,
+      PositiveProofConstant.nullspaceCoercivity(ridge).toOption.get,
+      assumption("bounded-level-set")
+    )
+    val kl = PalmKlEvidence.SemiAlgebraic(
+      objectiveIdentity,
+      assumption("kl-objective"),
+      "a polynomial objective is semi-algebraic and therefore a KL function"
+    )
+    new BiconvexFixture(x, y, problem, coercive, kl)
+
+  private def sweepContextFixture(
+      name: String,
+      observe: (ParameterId, Option[PalmSweepEnd]) => Unit,
+      ridge: Double = 0.2
+  ): BiconvexFixture =
+    val x = ParameterId.unsafe(s"$name-x")
+    val y = ParameterId.unsafe(s"$name-y")
+    val program = id(s"$name-program")
+    val data = id(s"$name-data")
+    val objectiveIdentity = id(s"$name-objective")
+    val xFunctional = id(s"$name-x-functional")
+    val yFunctional = id(s"$name-y-functional")
+    val objective = accepted(
+      PalmObjective.from(objectiveIdentity, s"$name biconvex objective"): state =>
+        for
+          xValue <- scalar(state, x)
+          yValue <- scalar(state, y)
+        yield
+          val residual = xValue * yValue - 1.0
+          0.5 * residual * residual + 0.5 * ridge * (xValue * xValue + yValue * yValue)
+    )
+    val smoothness = PositiveProofConstant.smoothness(20.0).toOption.get
+    val xOracle = PalmBlockOracle.fromWithSweep(
+      PalmBlockAssumptions(
+        x,
+        xFunctional,
+        assumption("x-block-proper-closed-convex"),
+        smoothness,
+        assumption("x-partial-gradient-lipschitz")
+      )
+    )(
+      stationarity = (state, sweep) =>
+        observe(x, sweep)
+        gradient(state, x, y, ridge, forX = true),
+      update = (state, iteration) =>
+        scalar(state, y).flatMap: yValue =>
+          val next = yValue / (yValue * yValue + ridge)
+          PalmBlockUpdate
+            .from(
+              scalarMatrix(next),
+              ValueIdentity.derived(s"$name-x-update-$iteration", state.valueIdentity),
+              PalmBlockSolveKind.Exact,
+              subproblemResidual = 0.0,
+              normalizationResidual = 0.0,
+              inexactness = 0.0
+            )
+            .left
+            .map(_.message),
+      normalization = _ => Right(0.0)
+    )
+    val yOracle = PalmBlockOracle.fromWithSweep(
+      PalmBlockAssumptions(
+        y,
+        yFunctional,
+        assumption("y-block-proper-closed-convex"),
+        smoothness,
+        assumption("y-partial-gradient-lipschitz")
+      )
+    )(
+      stationarity = (state, sweep) =>
+        observe(y, sweep)
+        gradient(state, x, y, ridge, forX = false),
+      update = (state, iteration) =>
+        scalar(state, x).flatMap: xValue =>
+          val next = xValue / (xValue * xValue + ridge)
+          PalmBlockUpdate
+            .from(
+              scalarMatrix(next),
+              ValueIdentity.derived(s"$name-y-update-$iteration", state.valueIdentity),
+              PalmBlockSolveKind.Exact,
+              subproblemResidual = 0.0,
+              normalizationResidual = 0.0,
+              inexactness = 0.0
+            )
+            .left
+            .map(_.message),
       normalization = _ => Right(0.0)
     )
     val problem = accepted(

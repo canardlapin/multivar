@@ -97,6 +97,41 @@ class CanonicalEffectSuite extends munit.FunSuite:
         assertMatrixClose(projector, DMat.eye(2), 1e-12)
       case other => fail(s"expected a leading invariant subspace, got $other")
 
+  test("fit requests only the effect rank when dimension exceeds effect rank and the leading root repeats") {
+    val feature = featureSpace("canonical-ranked-selection", 3)
+    val fit = fitted(
+      feature,
+      matrix(
+        Vector(
+          Vector(2.0, 0.0, 0.0),
+          Vector(0.0, 2.0, 0.0),
+          Vector(0.0, 0.0, 0.0)
+        )
+      ),
+      DMat.eye(3),
+      ResidualRegularization.Unregularized
+    )
+
+    assertEquals(fit.diagnostics.effectRank, 2)
+    assertEqualsDouble(fit.root.value, 2.0, 1e-12)
+    assertEquals(fit.diagnostics.leadingMultiplicity, 2)
+    fit.solution match
+      case CanonicalEffectSolution.LeadingSubspace(_, projector, multiplicity) =>
+        assertEquals(multiplicity, 2)
+        assertMatrixClose(
+          projector,
+          matrix(
+            Vector(
+              Vector(1.0, 0.0, 0.0),
+              Vector(0.0, 1.0, 0.0),
+              Vector(0.0, 0.0, 0.0)
+            )
+          ),
+          1e-12
+        )
+      case other => fail(s"expected a leading invariant subspace, got $other")
+  }
+
   test("an unregularized non-SPD residual fails through the typed Gale adapter"):
     val feature = featureSpace("canonical-non-spd", 2)
     val problem = accepted(

@@ -424,6 +424,83 @@ class RowGeometrySuite extends munit.FunSuite:
     }
   }
 
+  test("effect model fromTerms whitens once under block Cholesky and matches per-term reference projectors") {
+    val blocks = Vector(
+      IndexSet.from(Vector(0, 1), IndexAxis.Row).toOption.get,
+      IndexSet.from(Vector(2, 3), IndexAxis.Row).toOption.get
+    )
+    val metric = RowWhitening.blockCholesky(
+      rows = 4,
+      blocks = blocks,
+      upperCholesky = Vector(
+        GaleNumerics.matrixFromRows(Vector(Vector(2.0, 1.0), Vector(0.0, 3.0))),
+        GaleNumerics.matrixFromRows(Vector(Vector(1.0, 0.5), Vector(0.0, 2.0)))
+      )
+    ).toOption.get
+    val design = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(1.0, 0.0, 0.0, 0.0),
+        Vector(1.0, 0.0, 1.0, 0.0),
+        Vector(1.0, 1.0, 0.0, 0.0),
+        Vector(1.0, 1.0, 1.0, 1.0)
+      )
+    )
+    val terms = Vector("group" -> Vector(1), "level" -> Vector(2), "group.level" -> Vector(3))
+    val model = EffectModelFit.fromTerms(design, metric, terms).toOption.get
+    val designWReference = metric.whiten(design).toOption.get
+
+    assertMatrixClose(model.designWhitened, designWReference, 1e-9)
+    var row = 0
+    var changed = false
+    while row < model.design.rows && !changed do
+      var col = 0
+      while col < model.design.cols && !changed do
+        if math.abs(model.designWhitened(row, col) - model.design(row, col)) > 1e-9 then changed = true
+        col += 1
+      row += 1
+    assert(changed, "block Cholesky whitening should change the design")
+
+    terms.foreach { case (label, columns) =>
+      val shared = model.term(label).getOrElse(fail(s"missing term $label"))
+      val reference = EffectTermFit.fromDesign(label, design, columns, metric).toOption.get
+      assertMatrixClose(shared.termProjector.matrix, reference.termProjector.matrix, 1e-9)
+      assertMatrixClose(shared.nuisanceProjector.matrix, reference.nuisanceProjector.matrix, 1e-9)
+    }
+  }
+
+  test("selectRows and writeRows gather rows without a full-matrix copyData round trip") {
+    val matrix = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(1.0, 2.0, 3.0),
+        Vector(4.0, 5.0, 6.0),
+        Vector(7.0, 8.0, 9.0)
+      )
+    )
+    val rows = Vector(2, 0)
+    val gathered = RowGeometryOps.selectRows(matrix, rows)
+    val reference = GaleNumerics.selectRows(matrix, rows)
+    assertMatrixClose(gathered, reference.toRows, 0.0)
+
+    val buffer = matrix.copyData
+    val patch = GaleNumerics.matrixFromRows(
+      Vector(
+        Vector(-1.0, -2.0, -3.0),
+        Vector(-4.0, -5.0, -6.0)
+      )
+    )
+    RowGeometryOps.writeRows(buffer, matrix.cols, rows, patch)
+    val expected = matrix.copyData
+    var localRow = 0
+    while localRow < rows.length do
+      val targetRow = rows(localRow)
+      var col = 0
+      while col < matrix.cols do
+        expected(targetRow * matrix.cols + col) = patch(localRow, col)
+        col += 1
+      localRow += 1
+    assertEquals(buffer.toSeq, expected.toSeq)
+  }
+
   test("effect operators compose whiten, project, and unwhiten with a nontrivial row whitening") {
     val blocks = Vector(
       IndexSet.from(Vector(0, 1), IndexAxis.Row).toOption.get,

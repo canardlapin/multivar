@@ -261,11 +261,12 @@ object Op:
       domain: CoordinateEvidence[From],
       codomain: CoordinateEvidence[To],
       role: OperatorRoleWitness[R],
-      valueIdentity: ValueIdentity
+      valueIdentity: ValueIdentity,
+      provenance: SemanticProvenance = SemanticProvenance.source("low-rank-operator")
   ): Either[SemanticError, Op[From, To, R, UncheckedEvidence]] =
     if left.cols != right.cols then
       Left(SemanticError.OperatorShapeMismatch(left.rows, left.cols, right.rows, right.cols))
-    else fromKernel(LowRankKernel(left, right), domain, codomain, role, valueIdentity, SemanticProvenance.source("low-rank-operator"))
+    else fromKernel(LowRankKernel(left, right), domain, codomain, role, valueIdentity, provenance)
 
   private def certify[
       From <: Coordinate,

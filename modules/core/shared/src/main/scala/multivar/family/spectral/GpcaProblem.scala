@@ -9,6 +9,8 @@ import gale.backend.Backend.given
 import gale.linalg.CholeskyOptions
 import gale.linalg.DMat
 import gale.linalg.DVec
+import gale.spectral.EigenOrder
+import gale.spectral.EigenSelection
 
 /** Relative cutoff used to separate the fitted GPCA range from numerical null space. */
 opaque type GpcaRankTolerance = Double
@@ -304,18 +306,59 @@ object GpcaProblem:
           .left
           .map(LinalgErrorAdapter.toMultivarError)
       )
+      symInverse = MatrixOps.symmetrize(inverse)
+      _ <- multivarDiagram(MatrixOps.checkFinite("feature-cometric", symInverse))
+      eigen <- multivarDiagram(
+        LinalgErrorAdapter.adapt(
+          DenseSolvers.symmetricEigen.decompose(
+            symInverse,
+            EigenSelection.Count(1, EigenOrder.SmallestAlgebraic)
+          )
+        )
+      )
       linear <- semanticDiagram(
         Lin.fromDenseMatrix(
-          MatrixOps.symmetrize(inverse),
+          symInverse,
           CoordinateEvidence.dual(space),
           CoordinateEvidence.primal(space),
           identity,
           provenance.append(SemanticProvenanceEvent.Derived("feature-cometric", Vector(metricIdentity)))
         )
       )
-      certificate <- semanticDiagram(FormCertificates.spd(linear))
+      minimum = eigen.values(0)
+      residual = symmetryResidual(symInverse)
+      scale = frobeniusNorm(symInverse)
+      certificate = Certificate.unsafe[SpdProperty](
+        identity,
+        CertificateClaim.PositiveDefinite(minimum, residual, scale),
+        CertificateContext.portableFloat64
+      )
       cometric <- semanticDiagram(Op.certifiedSpd(Op.fromLin(linear, OperatorRoleWitness.cometric), certificate))
     yield cometric
+
+  private def symmetryResidual(matrix: DMat): Double =
+    var sum = 0.0
+    var row = 0
+    while row < matrix.rows do
+      var col = row + 1
+      while col < matrix.cols do
+        val difference = matrix(row, col) - matrix(col, row)
+        sum += difference * difference
+        col += 1
+      row += 1
+    Math.sqrt(sum)
+
+  private def frobeniusNorm(matrix: DMat): Double =
+    var sum = 0.0
+    var row = 0
+    while row < matrix.rows do
+      var col = 0
+      while col < matrix.cols do
+        val value = matrix(row, col)
+        sum += value * value
+        col += 1
+      row += 1
+    Math.sqrt(sum)
 
   private def certifiedCovariance[S <: SemanticSpace](
       covariance: Op[Dual[S], Primal[S], CovarianceOperatorRole, UncheckedEvidence],

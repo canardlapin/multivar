@@ -224,11 +224,7 @@ final class FittedCoefficientTransform private (
   def predict(input: MatrixView): Either[MultivarError, DMat] =
     for
       working <- predictWorking(input)
-      restored <- responsePreprocessor.inverseTransform(
-        MatrixView.dense(working),
-        policy = StoragePolicy.AllowDense
-      )
-      dense <- restored.toDense(StoragePolicy.AllowDense)
+      dense <- responsePreprocessor.inverseTransformDense(working)
     yield dense
 
 object FittedCoefficientTransform:

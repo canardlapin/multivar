@@ -128,6 +128,27 @@ enum PalmBlockSolveKind:
   case Exact
   case Inexact
 
+/** Post-sweep PALM context passed to block stationarity probes.
+  *
+  * Multi-block sweeps may update several parameters before stationarity is
+  * measured at the final state. Caching a proximal map from an earlier partial
+  * sweep state is therefore unsafe unless an oracle proves the cached value still
+  * applies at [[state]].
+  */
+final case class PalmSweepEnd private (
+    val state: PalmState,
+    val updates: Map[ParameterId, PalmBlockUpdate],
+    val lastUpdated: ParameterId
+)
+
+object PalmSweepEnd:
+  private[solver] def apply(
+      state: PalmState,
+      updates: Map[ParameterId, PalmBlockUpdate],
+      lastUpdated: ParameterId
+  ): PalmSweepEnd =
+    new PalmSweepEnd(state, updates, lastUpdated)
+
 final class PalmBlockUpdate private (
     val value: DMat,
     val valueIdentity: ValueIdentity,
@@ -172,7 +193,7 @@ object PalmBlockUpdate:
 final class PalmBlockOracle private (
     val assumptions: PalmBlockAssumptions,
     private val updateFunction: (PalmState, Int) => Either[String, PalmBlockUpdate],
-    private val stationarityFunction: PalmState => Either[String, Double],
+    private val stationarityFunction: (PalmState, Option[PalmSweepEnd]) => Either[String, Double],
     private val normalizationFunction: PalmState => Either[String, Double]
 ):
   def parameter: ParameterId = assumptions.parameter
@@ -181,7 +202,13 @@ final class PalmBlockOracle private (
     updateFunction(state, iteration).left.map(PalmConvergenceError.BlockFailure(parameter, _))
 
   def stationarity(state: PalmState): Either[PalmConvergenceError, Double] =
-    checkedResidual("stationarity", stationarityFunction(state))
+    stationarity(state, None)
+
+  private[solver] def stationarity(
+      state: PalmState,
+      sweep: Option[PalmSweepEnd]
+  ): Either[PalmConvergenceError, Double] =
+    checkedResidual("stationarity", stationarityFunction(state, sweep))
 
   def normalization(state: PalmState): Either[PalmConvergenceError, Double] =
     checkedResidual("normalization", normalizationFunction(state))
@@ -203,6 +230,15 @@ object PalmBlockOracle:
   )(
       update: (PalmState, Int) => Either[String, PalmBlockUpdate],
       stationarity: PalmState => Either[String, Double],
+      normalization: PalmState => Either[String, Double]
+  ): PalmBlockOracle =
+    fromWithSweep(assumptions)((state, _) => stationarity(state), update, normalization)
+
+  def fromWithSweep(
+      assumptions: PalmBlockAssumptions
+  )(
+      stationarity: (PalmState, Option[PalmSweepEnd]) => Either[String, Double],
+      update: (PalmState, Int) => Either[String, PalmBlockUpdate],
       normalization: PalmState => Either[String, Double]
   ): PalmBlockOracle =
     new PalmBlockOracle(assumptions, update, stationarity, normalization)
@@ -534,12 +570,16 @@ final class PalmSolver private (val admission: PalmAdmission):
     while iteration < config.iterations.intValue && !converged && failure.isEmpty do
       val beforeSweep = objective
       var blockTraces = Vector.empty[PalmBlockTrace]
+      var sweepUpdates = Map.empty[ParameterId, PalmBlockUpdate]
+      var lastUpdated = problem.blocks.headOption.map(_.parameter).getOrElse(ParameterId.unsafe("unset"))
       var blockIndex = 0
       while blockIndex < problem.blocks.length && failure.isEmpty do
         val oracle = problem.blocks(blockIndex)
         oracle.update(state, iteration) match
           case Left(error) => failure = Some(error)
           case Right(update) =>
+            lastUpdated = oracle.parameter
+            sweepUpdates = sweepUpdates.updated(oracle.parameter, update)
             state.block(oracle.parameter) match
               case Left(error) => failure = Some(error)
               case Right(previous) =>
@@ -584,7 +624,8 @@ final class PalmSolver private (val admission: PalmAdmission):
                                     objective = nextObjective
         blockIndex += 1
       if failure.isEmpty then
-        stationarity(problem, state) match
+        val sweepEnd = Some(PalmSweepEnd(state, sweepUpdates, lastUpdated))
+        stationarity(problem, state, sweepEnd) match
           case Left(error) => failure = Some(error)
           case Right(residuals) =>
             normalization(problem, state) match
@@ -646,9 +687,10 @@ final class PalmSolver private (val admission: PalmAdmission):
 
   private def stationarity(
       problem: PalmProblem,
-      state: PalmState
+      state: PalmState,
+      sweep: Option[PalmSweepEnd]
   ): Either[PalmConvergenceError, Vector[(ParameterId, Double)]] =
-    traversePalm(problem.blocks)(oracle => oracle.stationarity(state).map(oracle.parameter -> _))
+    traversePalm(problem.blocks)(oracle => oracle.stationarity(state, sweep).map(oracle.parameter -> _))
 
   private def normalization(problem: PalmProblem, state: PalmState): Either[PalmConvergenceError, Double] =
     traversePalm(problem.blocks)(_.normalization(state)).map(_.max)

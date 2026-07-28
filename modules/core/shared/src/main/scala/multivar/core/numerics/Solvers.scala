@@ -24,7 +24,10 @@ final case class SvdResult(u: DMat, singularValues: DVec, v: DMat):
   require(v.cols == singularValues.length, "right singular vector columns must match singular values")
 
 trait SymmetricEigenSolver:
-  def decompose(matrix: DMat): Either[LinAlgError, SymmetricEigenResult]
+  def decompose(matrix: DMat): Either[LinAlgError, SymmetricEigenResult] =
+    decompose(matrix, EigenSelection.All)
+
+  def decompose(matrix: DMat, selection: EigenSelection): Either[LinAlgError, SymmetricEigenResult]
 
 trait SvdSolver:
   def decompose(input: MatrixView, components: ComponentCount): Either[MultivarError, SvdResult]
@@ -43,10 +46,13 @@ object DenseSolvers:
     GaleGeneralizedEigenSolver
 
 private object GaleSymmetricEigenSolver extends SymmetricEigenSolver:
-  override def decompose(matrix: DMat): Either[LinAlgError, SymmetricEigenResult] =
+  override def decompose(
+      matrix: DMat,
+      selection: EigenSelection
+  ): Either[LinAlgError, SymmetricEigenResult] =
     validateFinite(matrix).flatMap: _ =>
       Eigen
-        .eigSymmetric(matrix, EigenSelection.All)
+        .eigSymmetric(matrix, selection)
         .map(descending)
 
 private object GaleGeneralizedEigenSolver extends GeneralizedEigenSolver:
@@ -107,38 +113,76 @@ final case class GramSvdSolver(
     val limit = Math.min(input.rows, input.cols)
     if components.value > limit then Left(MultivarError.InvalidComponentRequest(components.value, limit))
     else
+      // Prefer the thin Gram: XX' when n <= p, else X'X. Dense Gale still
+      // materializes a full spectrum under Count, but the Gram order is min(n, p).
+      val rowGram = input.rows <= input.cols
+      val selection = EigenSelection.Count(components.value, EigenOrder.LargestAlgebraic)
       for
-        gram <- input.crossProduct
+        gram <- if rowGram then input.transposeView.crossProduct else input.crossProduct
         _ <- MatrixOps.checkFinite("svd gram", gram)
-        eigen <- LinalgErrorAdapter.adapt(eigenSolver.decompose(gram))
+        eigen <- LinalgErrorAdapter.adapt(eigenSolver.decompose(gram, selection))
         k = keptComponents(eigen.values, components.value)
-        v = MatrixOps.takeColumns(eigen.vectors, k)
-        scores <- input.rightMultiply(v)
-      yield
-        val singularValues = new Array[Double](k)
-        var col = 0
-        while col < k do
-          singularValues(col) = Math.sqrt(eigen.values(col))
-          col += 1
-        val uData = scores.copyData
-        col = 0
-        while col < k do
-          val sv = singularValues(col)
-          var row = 0
-          while row < scores.rows do
-            uData(row * k + col) = scores(row, col) / sv
-            row += 1
-          col += 1
-        SvdResult(GaleNumerics.matrixFromRowMajor(scores.rows, k, uData), GaleNumerics.vectorFromArray(singularValues), v)
+        factors <-
+          if rowGram then rowGramFactors(input, eigen, k)
+          else columnGramFactors(input, eigen, k)
+      yield factors
+
+  private def columnGramFactors(
+      input: MatrixView,
+      eigen: SymmetricEigenResult,
+      k: Int
+  ): Either[MultivarError, SvdResult] =
+    val v = MatrixOps.takeColumns(eigen.vectors, k)
+    input.rightMultiply(v).map: scores =>
+      val singularValues = new Array[Double](k)
+      var col = 0
+      while col < k do
+        singularValues(col) = Math.sqrt(eigen.values(col))
+        col += 1
+      val uData = scores.copyData
+      col = 0
+      while col < k do
+        val sv = singularValues(col)
+        var row = 0
+        while row < scores.rows do
+          uData(row * k + col) = scores(row, col) / sv
+          row += 1
+        col += 1
+      SvdResult(GaleNumerics.matrixFromRowMajor(scores.rows, k, uData), GaleNumerics.vectorFromArray(singularValues), v)
+
+  private def rowGramFactors(
+      input: MatrixView,
+      eigen: SymmetricEigenResult,
+      k: Int
+  ): Either[MultivarError, SvdResult] =
+    val u = MatrixOps.takeColumns(eigen.vectors, k)
+    input.transposeMultiply(MatrixView.dense(u)).map: scores =>
+      val singularValues = new Array[Double](k)
+      var col = 0
+      while col < k do
+        singularValues(col) = Math.sqrt(eigen.values(col))
+        col += 1
+      val vData = scores.copyData
+      col = 0
+      while col < k do
+        val sv = singularValues(col)
+        var row = 0
+        while row < scores.rows do
+          vData(row * k + col) = scores(row, col) / sv
+          row += 1
+        col += 1
+      SvdResult(u, GaleNumerics.vectorFromArray(singularValues), GaleNumerics.matrixFromRowMajor(scores.rows, k, vData))
 
   /** Rank cutoff relative to the leading Gram eigenvalue, per EigenGmd's convention;
     * zero when the whole spectrum is rank noise.
     */
   private def keptComponents(values: DVec, requested: Int): Int =
-    val cutoff = rankTolerance * Math.max(values(0), 0.0)
-    var kept = 0
-    while kept < values.length && values(kept) > cutoff do kept += 1
-    Math.min(requested, kept)
+    if values.length == 0 then 0
+    else
+      val cutoff = rankTolerance * Math.max(values(0), 0.0)
+      var kept = 0
+      while kept < values.length && values(kept) > cutoff do kept += 1
+      Math.min(requested, kept)
 
 private[multivar] object LinalgErrorAdapter:
   def adapt[A](result: Either[LinAlgError, A]): Either[MultivarError, A] =
@@ -228,71 +272,105 @@ private[multivar] object MatrixOps:
     out.result()
 
   def scale(matrix: DMat, factor: Double): DMat =
-    val out = matrix.copyData
-    var i = 0
-    while i < out.length do
-      out(i) *= factor
-      i += 1
-    GaleNumerics.matrixFromRowMajor(matrix.rows, matrix.cols, out)
+    val out = Matrix.newBuilder(matrix.rows, matrix.cols)
+    var row = 0
+    while row < matrix.rows do
+      var col = 0
+      while col < matrix.cols do
+        out(row, col) = matrix(row, col) * factor
+        col += 1
+      row += 1
+    out.result()
 
   def addRidge(matrix: DMat, ridge: Double): DMat =
-    val out = matrix.copyData
-    var i = 0
-    while i < matrix.rows do
-      out(i * matrix.cols + i) += ridge
-      i += 1
-    GaleNumerics.matrixFromRowMajor(matrix.rows, matrix.cols, out)
+    val out = Matrix.newBuilder(matrix.rows, matrix.cols)
+    var row = 0
+    while row < matrix.rows do
+      var col = 0
+      while col < matrix.cols do
+        val base = matrix(row, col)
+        out(row, col) = if row == col then base + ridge else base
+        col += 1
+      row += 1
+    out.result()
+
+  /** Exact floating-point identity within `tolerance` on off-diagonals and
+    * `1 ± tolerance` on the diagonal. Used to skip spectral whitening of I.
+    */
+  def isApproximatelyIdentity(matrix: DMat, tolerance: Double): Boolean =
+    if matrix.rows != matrix.cols then false
+    else
+      var row = 0
+      var ok = true
+      while row < matrix.rows && ok do
+        var col = 0
+        while col < matrix.cols && ok do
+          val expected = if row == col then 1.0 else 0.0
+          if Math.abs(matrix(row, col) - expected) > tolerance then ok = false
+          col += 1
+        row += 1
+      ok
 
   def inverseSquareRoot(
       matrix: DMat,
       eigenSolver: SymmetricEigenSolver,
       tolerance: Double
   ): Either[MultivarError, DMat] =
-    for
-      _ <- checkFinite("inverse-square-root matrix", matrix)
-      _ <- checkSymmetric(matrix, tolerance)
-      eigen <- LinalgErrorAdapter.adapt(eigenSolver.decompose(matrix))
-      _ <-
-        var index = 0
-        var error = Option.empty[MultivarError]
-        while index < eigen.values.length && error.isEmpty do
-          if eigen.values(index) <= tolerance then
-            error = Some(MultivarError.NonInvertibleValue("positive-definite eigenvalue", index, eigen.values(index)))
-          index += 1
-        error match
-          case Some(value) => Left(value)
-          case None        => Right(())
-    yield
-      val scaled = Matrix.newBuilder(eigen.vectors.rows, eigen.vectors.cols)
-      var row = 0
-      while row < eigen.vectors.rows do
-        var col = 0
-        while col < eigen.vectors.cols do
-          scaled(row, col) = eigen.vectors(row, col) / Math.sqrt(eigen.values(col))
-          col += 1
-        row += 1
-      GaleNumerics.multiply(scaled.result(), eigen.vectors.t)
+    if isApproximatelyIdentity(matrix, tolerance) then Right(DMat.eye(matrix.rows))
+    else
+      for
+        _ <- checkFinite("inverse-square-root matrix", matrix)
+        _ <- checkSymmetric(matrix, tolerance)
+        eigen <- LinalgErrorAdapter.adapt(eigenSolver.decompose(matrix))
+        out <- inverseSquareRootFromEigen(eigen, tolerance)
+      yield out
+
+  def inverseSquareRootFromEigen(
+      eigen: SymmetricEigenResult,
+      tolerance: Double
+  ): Either[MultivarError, DMat] =
+    var index = 0
+    var error = Option.empty[MultivarError]
+    while index < eigen.values.length && error.isEmpty do
+      if eigen.values(index) <= tolerance then
+        error = Some(MultivarError.NonInvertibleValue("positive-definite eigenvalue", index, eigen.values(index)))
+      index += 1
+    error match
+      case Some(value) => Left(value)
+      case None =>
+        val scaled = Matrix.newBuilder(eigen.vectors.rows, eigen.vectors.cols)
+        var row = 0
+        while row < eigen.vectors.rows do
+          var col = 0
+          while col < eigen.vectors.cols do
+            scaled(row, col) = eigen.vectors(row, col) / Math.sqrt(eigen.values(col))
+            col += 1
+          row += 1
+        Right(GaleNumerics.multiply(scaled.result(), eigen.vectors.t))
 
   def scaleColumns(matrix: DMat, scale: DVec): DMat =
     require(matrix.cols == scale.length, "scale length must match matrix columns")
-    val out = matrix.copyData
+    val out = Matrix.newBuilder(matrix.rows, matrix.cols)
     var row = 0
     while row < matrix.rows do
       var col = 0
       while col < matrix.cols do
-        out(row * matrix.cols + col) *= scale(col)
+        out(row, col) = matrix(row, col) * scale(col)
         col += 1
       row += 1
-    GaleNumerics.matrixFromRowMajor(matrix.rows, matrix.cols, out)
+    out.result()
 
   def subtract(left: DMat, right: DMat): DMat =
     require(left.rows == right.rows && left.cols == right.cols, "matrix subtraction requires matching shapes")
-    val out = left.copyData
-    var i = 0
-    while i < out.length do
-      out(i) -= right(i / right.cols, i % right.cols)
-      i += 1
-    GaleNumerics.matrixFromRowMajor(left.rows, left.cols, out)
+    val out = Matrix.newBuilder(left.rows, left.cols)
+    var row = 0
+    while row < left.rows do
+      var col = 0
+      while col < left.cols do
+        out(row, col) = left(row, col) - right(row, col)
+        col += 1
+      row += 1
+    out.result()
 
   def traverse[A, B](values: Vector[A])(f: A => Either[MultivarError, B]): Either[MultivarError, Vector[B]] =
     val out = Vector.newBuilder[B]

@@ -76,8 +76,11 @@ private[multivar] object GaleNumerics:
     out.result()
 
 extension (matrix: DMat)
+  /** Single contiguous row-major copy into caller-owned primitive storage. */
   private[multivar] def copyData: Array[Double] =
-    matrix.valuesRowMajor.toArray
+    val out = new Array[Double](matrix.rows * matrix.cols)
+    matrix.copyRowMajorTo(out)
+    out
 
   private[multivar] def toRows: Vector[Vector[Double]] =
     Vector.tabulate(matrix.rows) { row =>
@@ -94,8 +97,14 @@ extension (matrix: DMat)
     GaleNumerics.selectColumns(matrix, indices)
 
 extension (vector: DVec)
+  /** Single contiguous logical copy into caller-owned primitive storage. */
   private[multivar] def copyData: Array[Double] =
-    vector.toSeq.toArray
+    val out = new Array[Double](vector.length)
+    vector.copyTo(out)
+    out
 
   private[multivar] def toVector: Vector[Double] =
-    vector.toSeq.toVector
+    val out = Vector.newBuilder[Double]
+    out.sizeHint(vector.length)
+    vector.foreachValue(out += _)
+    out.result()

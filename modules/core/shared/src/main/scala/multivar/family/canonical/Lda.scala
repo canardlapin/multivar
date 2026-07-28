@@ -533,18 +533,25 @@ object LdaProblem:
       feature: SpaceEvidence[Feature],
       provenance: SemanticProvenance
   ): Either[MultivarError, OpCometric[Feature, CertifiedSpd]] =
-    val identity = ValueIdentity.source(ValueId.unsafe(s"${feature.id.value}.lda-euclidean-cometric"))
+    val source = ValueIdentity.source(ValueId.unsafe(s"${feature.id.value}.lda-euclidean-cometric"))
+    val identity = ValueIdentity.derived("lda-euclidean-cometric", source)
+    val dim = feature.dimension
+    val context = CertificateContext.portableFloat64
     for
       linear <- ldaSemantic(
         Lin.fromDenseMatrix(
-          DMat.eye(feature.dimension),
+          DMat.eye(dim),
           CoordinateEvidence.dual(feature),
           CoordinateEvidence.primal(feature),
           identity,
           provenance
         )
       )
-      certificate <- ldaSemantic(FormCertificates.spd(linear))
+      certificate = Certificate.unsafe[SpdProperty](
+        identity,
+        CertificateClaim.PositiveDefinite(1.0, 0.0, Math.sqrt(dim.toDouble)),
+        context
+      )
       certified <- ldaSemantic(Op.certifiedSpd(Op.fromLin(linear, OperatorRoleWitness.cometric), certificate))
     yield certified
 

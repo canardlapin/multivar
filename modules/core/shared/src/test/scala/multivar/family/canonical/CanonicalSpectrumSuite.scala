@@ -37,6 +37,25 @@ class CanonicalSpectrumSuite extends munit.FunSuite:
     assertEquals(candidate.fitSpectrum(0).left.toOption, Some(MultivarError.InvalidComponentRequest(0, 2)))
     assertEquals(candidate.fitSpectrum(3).left.toOption, Some(MultivarError.InvalidComponentRequest(3, 2)))
 
+  test("fitSpectrum requests only the declared component count on a diagonal pencil") {
+    val fit = problem(diagonal(9.0, 4.0, 1.0), DMat.eye(3)).fitSpectrum(1).toOption.get
+
+    assertEquals(fit.roots.values.length, 1)
+    assertEqualsDouble(fit.roots.values(0).value, 9.0, 1e-10)
+    assertEquals(fit.diagnostics.clusters.length, 1)
+    assertEquals(fit.diagnostics.clusters.head.multiplicity, 1)
+  }
+
+  test("fit and fitSpectrum agree on the leading root when the effect rank is smaller than n") {
+    val effect = diagonal(2.0, 2.0, 0.0)
+    val problemValue = problem(effect, DMat.eye(3))
+    val spectrum = problemValue.fitSpectrum(2).toOption.get
+    val leading = problemValue.fit.toOption.get
+
+    assertEqualsDouble(leading.root.value, spectrum.roots.values(0).value, 1e-10)
+    assertEquals(leading.diagnostics.leadingMultiplicity, spectrum.diagnostics.clusters.head.multiplicity)
+  }
+
   private def problem(effect: DMat, residual: DMat): CanonicalEffectProblem[? <: SemanticSpace] =
     val space = SpaceRef.of("canonical-spectrum-test", SpaceRole.Observed, effect.rows).toOption.get
     CanonicalEffectProblem
