@@ -46,6 +46,18 @@ columns and applies the preprocessor stored during fitting.
 coordinates, and `reconstruct(newX)` composes the two to give the rank-`k`
 approximation of `newX`.
 
+```scala mdoc:silent
+val approximation =
+  pca.flatMap(_.reconstruct(x))
+```
+
+```scala mdoc
+approximation.map(values => (values.rows, values.cols))
+```
+
+The approximation lives in the same units as the input matrix, including when
+preprocessing was `Standardize()` rather than centering alone.
+
 The two fits differ in what they claim about the retained shares. PCA centres,
 so it reports `explainedVariance` and `explainedVarianceRatio`. SVD does not
 centre, so its shares are sums of squares about the origin rather than

@@ -43,6 +43,34 @@ results in original units, such as the response side of a regression, demand
 that type in their own signatures, so an unusable scale is rejected when it is
 supplied rather than at the first prediction.
 
+## Returning to original coordinates
+
+When preprocessing is a column affine (`Center`, `Standardize()`, or invertible
+`MultiplyColumns`), fitted decompositions can map component coordinates back to
+the feature scale the caller supplied:
+
+- `inverseTransform` undoes the fitted loadings and preprocessing on score
+  matrices.
+- `reconstruct` composes `transform` and `inverseTransform` to give a
+  rank-`k` approximation in original feature coordinates.
+- Regression `predict` applies the same inverse preprocessing on the response
+  side, so its output matches the original response units even when
+  `coefficients` are stored in preprocessed coordinates.
+
+```scala mdoc:silent
+val roundTrip =
+  standardized.flatMap { fit =>
+    fit.transform(x).flatMap(fit.inverseTransform)
+  }
+```
+
+```scala mdoc
+roundTrip.map(matrix => (matrix.rows, matrix.cols))
+```
+
+The result has the same shape as the input because each row is mapped back to
+the original feature scale.
+
 ## Results name the quantities users inspect
 
 The direct fits expose their common outputs without requiring a second

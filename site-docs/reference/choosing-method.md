@@ -34,7 +34,10 @@ definition.
 ## Reuse a fitted model
 
 - Use `transform` for SVD, PCA, and Nyström, and `inverseTransform` or
-  `reconstruct` to return from component coordinates to feature coordinates.
+  `reconstruct` to return from component coordinates to original feature
+  coordinates.
+- For CPCA, use `reconstruct` for original feature coordinates or
+  `reconstructWorking` for metric coordinates on the training block.
 - Use `project` for GPCA and LDA.
 - Use `transformX` or `transformY` for PLSC and CCA.
 - Use `predict` for reduced-rank regression and PLS regression; use `transform`

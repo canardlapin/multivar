@@ -88,3 +88,16 @@ row-by-feature blocks must be estimated separately. Reconstruction vocabulary
 distinguishes working-space metric coordinates (`reconstructWorking`) from
 original feature coordinates after inverse preprocessing (`reconstruct`), and
 whitened versus metric coordinates on each block result.
+
+```scala mdoc:silent
+val cpcaOriginal =
+  cpca.flatMap(_.reconstruct())
+```
+
+```scala mdoc
+cpcaOriginal.map(values => (values.rows, values.cols))
+```
+
+`reconstruct()` approximates the training block in original feature
+coordinates. Use `reconstructWorking()` when the metric coordinates on the
+constrained block are the quantity of interest.
