@@ -1,7 +1,7 @@
 package multivar
 package family.paired
 
-import multivar.capability.{FittedCoefficientTransform, FittedFrameTransform}
+import multivar.capability.{FittedCoefficientTransform, FittedFrameTransform, PairedCoordinateMap}
 import multivar.core.*
 
 import gale.linalg.DMat
@@ -251,7 +251,7 @@ object PlsRegression:
         val working = GaleNumerics.multiply(rMat, qMat)
         for
           response <- prepared.invertibleResponse
-          (raw, intercept) <- rawCoordinateMap(working, prepared.xPreprocessor, response)
+          rawMap <- PairedCoordinateMap.decode(working, prepared.xPreprocessor, response)
           coefficientTransform <- FittedCoefficientTransform.from(
             working,
             prepared.xPreprocessor,
@@ -268,8 +268,8 @@ object PlsRegression:
           )
         yield
           new PlsRegressionFit(
-            raw,
-            intercept,
+            rawMap.coefficients,
+            rawMap.intercept,
             working,
             coefficientTransform,
             xFrame,

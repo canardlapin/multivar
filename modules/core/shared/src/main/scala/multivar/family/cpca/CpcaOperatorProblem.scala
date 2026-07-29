@@ -2,6 +2,7 @@ package multivar
 package family.cpca
 
 import multivar.core.*
+import multivar.family.spectral.MetricCoordinates
 import multivar.optimization.*
 import multivar.solver.*
 
@@ -313,7 +314,8 @@ final class CpcaOperatorProblem[Rows <: SemanticSpace, Feature <: SemanticSpace]
       featureMetricDense <- cpcaSemantic(featureMetric.toDense)
       rowRoots <- MetricSqrt.factorDense(rowMetricDense, eigenSolver, rankTolerance, "CPCA row metric")
       featureRoots <- MetricSqrt.factorDense(featureMetricDense, eigenSolver, rankTolerance, "CPCA feature metric")
-      zStar = rowRoots.half.applyLeft(featureRoots.half.applyRight(dense))
+      coordinates <- MetricCoordinates.tableFromRoots(dense, rowRoots, featureRoots)
+      zStar = coordinates.matrix
       inertia <- partition(zStar)
       executions <- fitBlocks(zStar, rowRoots, featureRoots, blockRequest, svdSolver, rankTolerance)
     yield

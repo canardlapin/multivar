@@ -40,6 +40,11 @@ ThisBuild / tlSitePublishTags := false
 lazy val galeRevision = "d55fe2f97196a76ab7879e1a12f1e92403aeba06"
 lazy val galeVersion  = s"1.0.0-${galeRevision.take(12)}"
 
+// Resample4s is likewise a Maven dependency so multivar-inference remains
+// publishable without a sibling source checkout.
+lazy val resample4sRevision = "6bc4172a966c92f1b06811eac64ac2bada9fef9b"
+lazy val resample4sVersion  = s"0.1.0-${resample4sRevision.take(12)}"
+
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
     "-deprecation",
@@ -95,22 +100,52 @@ lazy val ir =
 lazy val irJS  = ir.js
 lazy val irJVM = ir.jvm
 
+lazy val inference =
+  crossProject(JSPlatform, JVMPlatform)
+    .crossType(CrossType.Full)
+    .in(file("modules/inference"))
+    .dependsOn(core)
+    .settings(commonSettings)
+    .settings(
+      name := "multivar-inference",
+      description := "Typed resampling-based inference for multivar models.",
+      libraryDependencies +=
+        "io.github.canardlapin" %%% "resample4s" % resample4sVersion
+    )
+    .jvmSettings(mimaSettings)
+    .jsSettings(jsSettings)
+
+lazy val inferenceJS  = inference.js
+lazy val inferenceJVM = inference.jvm
+
 lazy val stageDocsApi = taskKey[Unit](
   "Stage the generated JVM Scaladoc for the public modules inside the guide site."
+)
+lazy val stageCoreDocsApi = taskKey[Unit](
+  "Generate and stage multivar-core Scaladoc."
+)
+lazy val stageIrDocsApi = taskKey[Unit](
+  "Generate and stage multivar-ir Scaladoc."
+)
+lazy val stageInferenceDocsApi = taskKey[Unit](
+  "Generate and stage multivar-inference Scaladoc."
 )
 
 lazy val docs =
   project
     .in(file("site"))
-    .dependsOn(coreJVM, irJVM)
+    .dependsOn(coreJVM, irJVM, inferenceJVM)
     .enablePlugins(TypelevelSitePlugin)
     .settings(
       name := "multivar-docs",
       publish / skip := true,
-      // mdoc examples import gale.linalg.*; TypelevelSitePlugin's mdoc classpath
-      // does not always surface transitive libraryDependencies of dependsOn
-      // projects after the Phase 4 Maven pin, so pin Gale here explicitly.
-      libraryDependencies += "io.github.canardlapin" %% "gale-core" % galeVersion,
+      // TypelevelSitePlugin's mdoc classpath does not always surface transitive
+      // libraryDependencies of dependsOn projects, so pin public dependencies
+      // used by executable examples explicitly.
+      libraryDependencies ++= Seq(
+        "io.github.canardlapin" %% "gale-core" % galeVersion,
+        "io.github.canardlapin" %% "resample4s" % resample4sVersion
+      ),
       mdocIn := (ThisBuild / baseDirectory).value / "site-docs",
       laikaConfig := LaikaConfig.defaults.withRawContent,
       tlSiteHelium := tlSiteHelium.value
@@ -123,17 +158,36 @@ lazy val docs =
           depth = 3,
           includePageSections = false
         ),
-      stageDocsApi := {
+      stageCoreDocsApi := {
         val destination = mdocOut.value / "api"
-        IO.delete(destination)
         IO.copyDirectory(
           (coreJVM / Compile / doc).value,
           destination / "core"
         )
+      },
+      stageIrDocsApi := {
+        val destination = mdocOut.value / "api"
         IO.copyDirectory(
           (irJVM / Compile / doc).value,
           destination / "ir"
         )
+      },
+      stageInferenceDocsApi := {
+        val destination = mdocOut.value / "api"
+        IO.copyDirectory(
+          (inferenceJVM / Compile / doc).value,
+          destination / "inference"
+        )
+      },
+      stageDocsApi := {
+        IO.delete(mdocOut.value / "api")
+        Def
+          .sequential(
+            stageCoreDocsApi,
+            stageIrDocsApi,
+            stageInferenceDocsApi
+          )
+          .value
       },
       tlSite := Def
         .sequential(
@@ -160,24 +214,34 @@ lazy val smoke =
       scalacOptions ++= Seq("-deprecation", "-feature", "-unchecked"),
       libraryDependencies ++= Seq(
         "io.github.canardlapin" %% "multivar-core" % version.value,
-        "io.github.canardlapin" %% "multivar-ir" % version.value
+        "io.github.canardlapin" %% "multivar-ir" % version.value,
+        "io.github.canardlapin" %% "multivar-inference" % version.value
       )
     )
 
 lazy val root =
   project
     .in(file("."))
-    .aggregate(coreJVM, coreJS, irJVM, irJS)
+    .aggregate(coreJVM, coreJS, irJVM, irJS, inferenceJVM, inferenceJS)
     .settings(
       name := "multivar",
       publish / skip := true
     )
 
-addCommandAlias("compileAll", ";coreJVM/compile;coreJS/compile;irJVM/compile;irJS/compile")
-addCommandAlias("testAll", ";coreJVM/test;coreJS/test;irJVM/test;irJS/test")
+addCommandAlias(
+  "compileAll",
+  ";coreJVM/compile;coreJS/compile;irJVM/compile;irJS/compile;inferenceJVM/compile;inferenceJS/compile"
+)
+addCommandAlias(
+  "testAll",
+  ";coreJVM/test;coreJS/test;irJVM/test;irJS/test;inferenceJVM/test;inferenceJS/test"
+)
 addCommandAlias("docsCheck", "docs/tlSite")
 addCommandAlias(
   "smokeCheck",
-  ";coreJVM/publishLocal;irJVM/publishLocal;smoke/clean;smoke/compile"
+  ";coreJVM/publishLocal;irJVM/publishLocal;inferenceJVM/publishLocal;smoke/clean;smoke/compile"
 )
-addCommandAlias("mimaCheck", ";coreJVM/mimaReportBinaryIssues;irJVM/mimaReportBinaryIssues")
+addCommandAlias(
+  "mimaCheck",
+  ";coreJVM/mimaReportBinaryIssues;irJVM/mimaReportBinaryIssues;inferenceJVM/mimaReportBinaryIssues"
+)

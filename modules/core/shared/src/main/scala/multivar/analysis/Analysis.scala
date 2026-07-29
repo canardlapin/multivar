@@ -19,13 +19,29 @@ export multivar.family.spectral.{Gpca, GpcaCentering, GpcaFit, Pca, PcaFit, Svd,
 export multivar.family.paired.{
   Cca,
   CcaFit,
+  DecompositionValidation,
+  DecompositionValidationLoss,
+  DualSpectrum,
   Plsc,
   PlscFit,
   PlsAlgorithm,
   PlsRegression,
   PlsRegressionFit,
+  RankBudget,
   ReducedRankRegression,
-  ReducedRankRegressionFit
+  ReducedRankRegressionFit,
+  ResolvedInput,
+  TaskComponentBlock,
+  TaskComponentIndex,
+  TaskComponents,
+  TaskComponentsFit,
+  TaskDecompositionBranch,
+  TaskDecompositionFit,
+  TaskPart,
+  TaskPartValue,
+  TaskResolution,
+  TaskResolutionTransfer,
+  TaskValue
 }
 export multivar.family.canonical.{FisherDiscriminant, FisherDiscriminantFit, WithinScatterPolicy}
 export multivar.family.cpca.{Cpca, CpcaFit}

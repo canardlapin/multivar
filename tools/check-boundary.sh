@@ -2,10 +2,10 @@
 set -eu
 
 if rg -n --glob '*/src/main/**/*.scala' \
-  '^(package|import)[[:space:]]+(scalafim\.|multivar\.numerics)|scalafim\.(multivar|linalg)' \
-  modules/core modules/ir
+  '^(package|import)[[:space:]]+(scalafim\.|multivar\.numerics|breeze\.|org\.apache\.spark\.|org\.neuroimaging\.|neuroimaging\.)|scalafim\.(multivar|linalg)' \
+  modules/core modules/ir modules/inference
 then
-  echo "production sources must not depend on scalafim packages or recreate multivar.numerics" >&2
+  echo "production sources cross the multivar/resample4s/Gale ownership boundary" >&2
   exit 1
 fi
 

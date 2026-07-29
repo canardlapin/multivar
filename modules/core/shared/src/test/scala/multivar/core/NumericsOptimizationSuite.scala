@@ -83,6 +83,27 @@ class NumericsOptimizationSuite extends munit.FunSuite:
     assertMatrixClose(reconstructed, input.toDense().toOption.get.toRows, 1e-9)
   }
 
+  test("full-rank one-dimensional SVD retains its requested component") {
+    val input = MatrixView.dense(
+      GaleNumerics.matrixFromRows(
+        Vector(
+          Vector(0.5)
+        )
+      )
+    )
+
+    val svd =
+      DenseSolvers.svd
+        .decompose(input, ComponentCount(1).toOption.get)
+        .toOption
+        .get
+
+    assertEquals(svd.singularValues.length, 1)
+    assertEqualsDouble(svd.singularValues(0), 0.5, 1e-12)
+    assertEquals(svd.u.cols, 1)
+    assertEquals(svd.v.cols, 1)
+  }
+
   private def assertMatrixClose(actual: DMat, expected: Vector[Vector[Double]], tol: Double): Unit =
     assertEquals(actual.rows, expected.length)
     assertEquals(actual.cols, expected.headOption.map(_.length).getOrElse(0))

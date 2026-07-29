@@ -265,6 +265,279 @@ public final class multivar.family.paired.PlsRegressionFit {
   public static multivar.capability.FittedFrameTransform frameOf(multivar.family.paired.PlsRegressionFit);
 }
 
+public final class multivar.family.paired.TaskComponents {
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, int);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, int, multivar.family.paired.TaskResolution);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$Options);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(multivar.core.MatrixView, multivar.core.MatrixView, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$Options, multivar.core.SvdSolver, multivar.core.SymmetricEigenSolver, multivar.core.StoragePolicy);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$DecompositionOptions);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.TaskResolution, int);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(multivar.core.MatrixView, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$DecompositionOptions, multivar.core.SvdSolver, multivar.core.SymmetricEigenSolver, multivar.core.StoragePolicy);
+}
+
+public final class multivar.family.paired.TaskComponents$ implements java.io.Serializable {
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, int);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, int, multivar.family.paired.TaskResolution);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$Options);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskComponentsFit> fit(multivar.core.MatrixView, multivar.core.MatrixView, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$Options, multivar.core.SvdSolver, multivar.core.SymmetricEigenSolver, multivar.core.StoragePolicy);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$DecompositionOptions);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(gale.linalg.DMat, multivar.family.paired.TaskResolution, int);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.TaskDecompositionFit> decompose(multivar.core.MatrixView, multivar.family.paired.RankBudget, multivar.family.paired.TaskResolution, multivar.family.paired.TaskComponents$DecompositionOptions, multivar.core.SvdSolver, multivar.core.SymmetricEigenSolver, multivar.core.StoragePolicy);
+  public static final multivar.family.paired.TaskComponents$DecompositionOptions$ DecompositionOptions;
+  public static final multivar.family.paired.TaskComponents$Options$ Options;
+}
+
+public final class multivar.family.paired.TaskComponentsFit {
+  public boolean boundaryTied();
+  public gale.linalg.DMat coefficients();
+  public gale.linalg.DVec intercept();
+  public int taskSupportRank();
+  public int weakDirectionCount();
+  public java.lang.String sourceAxis();
+  public java.lang.String targetAxis();
+  public multivar.family.paired.RankBudget rank();
+  public multivar.family.paired.TaskComponentBlock focus();
+  public multivar.family.paired.TaskComponentBlock remainder();
+  public multivar.family.paired.TaskComponentsFit(multivar.family.paired.TaskComponentBlock, multivar.family.paired.TaskComponentBlock, multivar.family.paired.TaskValue, java.lang.String, java.lang.String, multivar.family.paired.TaskResolution, multivar.family.paired.RankBudget, scala.Option<multivar.family.paired.DualSpectrum>, boolean, int, int, gale.linalg.DMat, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, multivar.capability.FittedCoefficientTransform, multivar.core.FittedPreprocessor, multivar.core.FittedInvertiblePreprocessor);
+  public multivar.family.paired.TaskResolution resolution();
+  public multivar.family.paired.TaskValue trainingValue();
+  public multivar.family.paired.TaskValue value();
+  public scala.Option<multivar.family.paired.DualSpectrum> dualSpectrum();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> baseline(int);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> focusContribution(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> predict(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> predict(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> remainderContribution(gale.linalg.DMat);
+}
+
+public final class multivar.family.paired.TaskComponentBlock {
+  public gale.linalg.DMat sourceScores();
+  public gale.linalg.DMat sourceWeights();
+  public gale.linalg.DMat targetPatterns();
+  public gale.linalg.DVec componentValues();
+  public gale.linalg.DVec singularValues();
+  public int rank();
+  public multivar.family.paired.TaskComponentBlock(multivar.family.paired.TaskPart, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.TaskPartValue);
+  public multivar.family.paired.TaskPart part();
+  public multivar.family.paired.TaskPartValue value();
+  public static multivar.family.paired.TaskComponentBlock apply(multivar.family.paired.TaskPart, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.TaskPartValue);
+}
+
+public final class multivar.family.paired.TaskDecompositionFit {
+  public boolean boundaryTied();
+  public gale.linalg.DMat reconstructWorking();
+  public int taskSupportRank();
+  public int weakDirectionCount();
+  public java.lang.String sourceAxis();
+  public java.lang.String targetAxis();
+  public multivar.family.paired.DecompositionValidationLoss validationLoss$default$2();
+  public multivar.family.paired.RankBudget rank();
+  public multivar.family.paired.TaskDecompositionBranch focus();
+  public multivar.family.paired.TaskDecompositionBranch remainder();
+  public multivar.family.paired.TaskDecompositionFit(multivar.family.paired.TaskDecompositionBranch, multivar.family.paired.TaskDecompositionBranch, multivar.family.paired.TaskValue, java.lang.String, java.lang.String, multivar.family.paired.TaskResolution, multivar.family.paired.TaskResolutionTransfer, multivar.family.paired.RankBudget, scala.Option<multivar.family.paired.DualSpectrum>, boolean, int, int, scala.collection.immutable.Vector<multivar.family.paired.TaskComponentIndex>, scala.Option<multivar.capability.FittedBidirectionalTransform>, gale.linalg.DMat, gale.linalg.DMat, multivar.core.FittedInvertiblePreprocessor, int, multivar.core.MetricRoots, gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat);
+  public multivar.family.paired.TaskResolution resolution();
+  public multivar.family.paired.TaskResolutionTransfer resolutionTransfer();
+  public multivar.family.paired.TaskValue trainingValue();
+  public multivar.family.paired.TaskValue value();
+  public scala.Option<multivar.family.paired.DualSpectrum> dualSpectrum();
+  public scala.collection.immutable.Vector<multivar.family.paired.TaskComponentIndex> componentIndex();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> baseline(int);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> focusContribution(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> focusContribution(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> focusContributionTraining();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> reconstruct(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> reconstruct(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> reconstructTraining();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> remainderContribution(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> remainderContribution(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> remainderContributionTraining();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> residual(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> residual(multivar.core.MatrixView, multivar.core.StoragePolicy);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> transform(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> transform(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, java.lang.Object> unsupportedFraction(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, java.lang.Object> unsupportedFraction(multivar.core.MatrixView, multivar.core.StoragePolicy);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.DecompositionValidation> validationLoss(gale.linalg.DMat, multivar.family.paired.DecompositionValidationLoss);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.DecompositionValidation> validationLoss(multivar.core.MatrixView, multivar.family.paired.DecompositionValidationLoss, multivar.core.StoragePolicy);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.ResolvedInput> resolve(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.ResolvedInput> resolve(multivar.core.MatrixView, multivar.core.StoragePolicy);
+}
+
+public final class multivar.family.paired.TaskDecompositionBranch {
+  public gale.linalg.DMat sourceScores();
+  public gale.linalg.DMat sourceWeights();
+  public gale.linalg.DMat targetPatterns();
+  public gale.linalg.DVec componentValues();
+  public gale.linalg.DVec singularValues();
+  public int rank();
+  public multivar.family.paired.TaskDecompositionBranch(multivar.family.paired.TaskPart, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat, multivar.family.paired.TaskPartValue, scala.Option<multivar.capability.FittedBidirectionalTransform>, int, multivar.core.FittedInvertiblePreprocessor);
+  public multivar.family.paired.TaskPart part();
+  public multivar.family.paired.TaskPartValue value();
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> reconstructContribution(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> reconstructContribution(multivar.core.MatrixView);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> transform(gale.linalg.DMat);
+  public scala.util.Either<multivar.core.MultivarError, gale.linalg.DMat> transform(multivar.core.MatrixView);
+}
+
+public abstract class multivar.family.paired.TaskPart implements scala.Product,scala.reflect.Enum {
+  public multivar.family.paired.TaskPart();
+  public static multivar.family.paired.TaskPart fromOrdinal(int);
+  public static multivar.family.paired.TaskPart valueOf(java.lang.String);
+  public static multivar.family.paired.TaskPart[] values();
+}
+
+public final class multivar.family.paired.TaskPart$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.TaskPart);
+  public multivar.family.paired.TaskPart fromOrdinal(int);
+  public multivar.family.paired.TaskPart valueOf(java.lang.String);
+  public multivar.family.paired.TaskPart[] values();
+  public static final multivar.family.paired.TaskPart Focus;
+  public static final multivar.family.paired.TaskPart Remainder;
+}
+
+public final class multivar.family.paired.TaskPartValue {
+  public double availableGain();
+  public double retainedGain();
+  public double shareOfAvailable();
+  public multivar.family.paired.TaskPartValue(double, double, double);
+  public static multivar.family.paired.TaskPartValue apply(double, double, double);
+}
+
+public interface multivar.family.paired.TaskResolution {
+  public abstract java.lang.String label();
+  public static int ordinal(multivar.family.paired.TaskResolution);
+}
+
+public final class multivar.family.paired.TaskResolution$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.TaskResolution);
+  public static final multivar.family.paired.TaskResolution$Source$ Source;
+  public static final multivar.family.paired.TaskResolution$SourceCovariance$ SourceCovariance;
+  public static final multivar.family.paired.TaskResolution$SourceRegression$ SourceRegression;
+  public static final multivar.family.paired.TaskResolution$Target$ Target;
+  public static final multivar.family.paired.TaskResolution$TargetStructure$ TargetStructure;
+  public static final multivar.family.paired.TaskResolution$TargetWeights$ TargetWeights;
+  public static final multivar.family.paired.TaskResolution$Whole$ Whole;
+}
+
+public final class multivar.family.paired.TaskValue {
+  public double availableFraction();
+  public double availableGain();
+  public double baselineLoss();
+  public double fittedLoss();
+  public double fullLoss();
+  public double rankEfficiency();
+  public double retainedFraction();
+  public double retainedGain();
+  public double unretainedGain();
+  public multivar.family.paired.TaskValue(double, double, double, double, double);
+  public static multivar.family.paired.TaskValue apply(double, double, double, double, double);
+}
+
+public abstract class multivar.family.paired.TaskResolutionTransfer implements scala.Product,scala.reflect.Enum {
+  public java.lang.String label();
+  public multivar.family.paired.TaskResolutionTransfer();
+  public static multivar.family.paired.TaskResolutionTransfer fromOrdinal(int);
+  public static multivar.family.paired.TaskResolutionTransfer valueOf(java.lang.String);
+  public static multivar.family.paired.TaskResolutionTransfer[] values();
+}
+
+public final class multivar.family.paired.TaskResolutionTransfer$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.TaskResolutionTransfer);
+  public multivar.family.paired.TaskResolutionTransfer fromOrdinal(int);
+  public multivar.family.paired.TaskResolutionTransfer valueOf(java.lang.String);
+  public multivar.family.paired.TaskResolutionTransfer[] values();
+  public static final multivar.family.paired.TaskResolutionTransfer FeatureSpecified;
+  public static final multivar.family.paired.TaskResolutionTransfer TrainingSourceInduced;
+}
+
+public final class multivar.family.paired.TaskComponentIndex implements scala.Product,java.io.Serializable {
+  public double singularValue();
+  public int globalIndex();
+  public int localIndex();
+  public multivar.family.paired.TaskComponentIndex copy(int, multivar.family.paired.TaskPart, int, double);
+  public multivar.family.paired.TaskComponentIndex(int, multivar.family.paired.TaskPart, int, double);
+  public multivar.family.paired.TaskPart part();
+  public static multivar.family.paired.TaskComponentIndex apply(int, multivar.family.paired.TaskPart, int, double);
+  public static multivar.family.paired.TaskComponentIndex unapply(multivar.family.paired.TaskComponentIndex);
+}
+
+public final class multivar.family.paired.DecompositionValidation implements scala.Product,java.io.Serializable {
+  public double baselineLoss();
+  public double fittedLoss();
+  public double residualFrobenius();
+  public multivar.family.paired.DecompositionValidation copy(double, double, double);
+  public multivar.family.paired.DecompositionValidation(double, double, double);
+  public static multivar.family.paired.DecompositionValidation apply(double, double, double);
+  public static multivar.family.paired.DecompositionValidation unapply(multivar.family.paired.DecompositionValidation);
+}
+
+public abstract class multivar.family.paired.DecompositionValidationLoss implements scala.Product,scala.reflect.Enum {
+  public multivar.family.paired.DecompositionValidationLoss();
+  public static multivar.family.paired.DecompositionValidationLoss fromOrdinal(int);
+  public static multivar.family.paired.DecompositionValidationLoss valueOf(java.lang.String);
+  public static multivar.family.paired.DecompositionValidationLoss[] values();
+}
+
+public final class multivar.family.paired.DecompositionValidationLoss$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.DecompositionValidationLoss);
+  public multivar.family.paired.DecompositionValidationLoss fromOrdinal(int);
+  public multivar.family.paired.DecompositionValidationLoss valueOf(java.lang.String);
+  public multivar.family.paired.DecompositionValidationLoss[] values();
+  public static final multivar.family.paired.DecompositionValidationLoss ReconstructionFrobenius;
+}
+
+public abstract class multivar.family.paired.DualSpectrum implements scala.Product,scala.reflect.Enum {
+  public java.lang.String label();
+  public multivar.family.paired.DualSpectrum();
+  public static multivar.family.paired.DualSpectrum fromOrdinal(int);
+  public static multivar.family.paired.DualSpectrum moorePenrose();
+  public static multivar.family.paired.DualSpectrum truncated(int);
+}
+
+public final class multivar.family.paired.DualSpectrum$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.DualSpectrum);
+  public multivar.family.paired.DualSpectrum fromOrdinal(int);
+  public multivar.family.paired.DualSpectrum moorePenrose();
+  public multivar.family.paired.DualSpectrum truncated(int);
+  public static final multivar.family.paired.DualSpectrum$MoorePenrose$ MoorePenrose;
+  public static final multivar.family.paired.DualSpectrum$Ridge$ Ridge;
+  public static final multivar.family.paired.DualSpectrum$Truncated$ Truncated;
+}
+
+public interface multivar.family.paired.RankBudget {
+  public abstract java.lang.String label();
+  public static int ordinal(multivar.family.paired.RankBudget);
+  public static scala.util.Either<multivar.core.MultivarError, multivar.family.paired.RankBudget> validate(multivar.family.paired.RankBudget);
+}
+
+public final class multivar.family.paired.RankBudget$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.family.paired.RankBudget);
+  public scala.util.Either<multivar.core.MultivarError, multivar.family.paired.RankBudget> validate(multivar.family.paired.RankBudget);
+  public static final multivar.family.paired.RankBudget$Focus$ Focus;
+  public static final multivar.family.paired.RankBudget$Split$ Split;
+  public static final multivar.family.paired.RankBudget$Total$ Total;
+}
+
+public final class multivar.family.paired.ResolvedInput implements scala.Product,java.io.Serializable {
+  public gale.linalg.DMat focus();
+  public gale.linalg.DMat supportedRemainder();
+  public gale.linalg.DMat unsupported();
+  public multivar.family.paired.ResolvedInput copy(gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat);
+  public multivar.family.paired.ResolvedInput(gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat);
+  public static multivar.family.paired.ResolvedInput apply(gale.linalg.DMat, gale.linalg.DMat, gale.linalg.DMat);
+  public static multivar.family.paired.ResolvedInput unapply(multivar.family.paired.ResolvedInput);
+}
+
 public final class multivar.family.canonical.FisherDiscriminant {
   public static <L> multivar.family.canonical.LdaObjective fit$default$5();
   public static <L> multivar.family.canonical.WithinScatterPolicy fit$default$4();

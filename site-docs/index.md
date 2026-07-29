@@ -54,6 +54,7 @@ Scala.js.
 | --- | --- |
 | Reduce one matrix to a few components | [SVD and PCA](analyses/decompositions.md) |
 | Relate or predict two matrices | [PLSC, CCA, RRR, and PLS](analyses/paired.md) |
+| Resolve a prediction task into scientific focus and remainder | [Task components](analyses/task-components.md) |
 | Separate labelled groups | [Discriminant and canonical methods](analyses/discrimination.md) |
 | Supply row or feature geometry | [Generalized and constrained PCA](analyses/geometry.md) |
 | Approximate a kernel eigensystem | [Nyström approximation](analyses/kernels.md) |

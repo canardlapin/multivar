@@ -26,6 +26,10 @@ jobs:
           java-version: "21"
           cache: sbt
       - uses: sbt/setup-sbt@v1
+      - name: Publish pinned Gale for Maven resolution
+        run: ./tools/publish-gale-local.sh
+      - name: Publish pinned Resample4s for Maven resolution
+        run: ./tools/publish-resample4s-local.sh
       - name: Build documentation
         run: sbt docsCheck
       - uses: actions/configure-pages@v6

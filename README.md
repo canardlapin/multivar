@@ -25,11 +25,12 @@ the 0.1 line until the API and numerical contracts are stable enough for a
 tagged release. The source build uses Scala 3.7.4 and supports the JVM and
 Scala.js.
 
-The first release will publish two artifacts. JVM projects will use:
+The first release will publish three artifacts. JVM projects will use:
 
 ```scala
 libraryDependencies += "io.github.canardlapin" %% "multivar-core" % version
 libraryDependencies += "io.github.canardlapin" %% "multivar-ir" % version
+libraryDependencies += "io.github.canardlapin" %% "multivar-inference" % version
 ```
 
 Scala.js cross-projects will use `%%%` in place of `%%`.
@@ -129,8 +130,14 @@ a stationary solution does not become a claim of global optimality.
 statistical solver adapters, and fitted transformations.
 
 `multivar-ir` contains JSON codecs, schemas, and conformance fixtures for
-portable analysis programs and evidence. Most Scala applications need only
-`multivar-core`.
+portable analysis programs and evidence.
+
+`multivar-inference` contains typed resampling designs, deterministic Monte
+Carlo plans, ordered-root protocols, stability summaries, and inferential
+provenance. It depends on core and on
+[Resample4s](https://github.com/canardlapin/resample4s) for lawful resampling
+plans and deterministic seed derivation. Applications that only fit models
+need `multivar-core`; add inference only when perturbation inference is needed.
 
 Multivar depends on [Gale](https://github.com/canardlapin/gale) for portable
 matrices, linear operators, and general numerical solvers. Dataset access,
@@ -138,16 +145,17 @@ storage, scheduling, and domain-specific adapters remain outside this library.
 
 ## Build
 
-Install the pinned Gale revision into the local Ivy repository before the
-first compile on a clean machine (CI does this automatically):
+Install the pinned Gale and Resample4s revisions into the local Ivy repository
+before the first compile on a clean machine (CI does this automatically):
 
 ```sh
 ./tools/publish-gale-local.sh
+./tools/publish-resample4s-local.sh
 ```
 
-Until Gale is published to Maven Central, that local install is what makes
-multivar's Maven `gale-core` coordinate resolve. After Gale ships, the same
-coordinate will resolve from Central and the script becomes optional.
+Until those dependencies are published to Maven Central, the local installs
+make Multivar's Maven coordinates resolve. Once they ship, the same
+coordinates will resolve from Central and the scripts become optional.
 
 Run the complete JVM and Scala.js build with:
 
@@ -171,7 +179,8 @@ sbt smokeCheck
 
 Binary compatibility uses MiMa. There is no previous release yet, so
 `mimaPreviousArtifacts` is empty and `sbt mimaCheck` is a no-op until `0.1.0`
-ships; the Phase 0 public-surface snapshot covers the pre-release period.
+ships. Separate ordinary-analysis and inference public-surface snapshots cover
+the pre-release period.
 
 Numerical changes should include an analytic law, an adversarial case, or an
 independent reference result. See [CONTRIBUTING.md](CONTRIBUTING.md) before

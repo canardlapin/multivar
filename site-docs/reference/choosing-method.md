@@ -13,6 +13,8 @@ definition.
 | Which paired directions have high covariance? | `Plsc.fit` | `PlscFit` |
 | Which paired directions have high correlation? | `Cca.fit` | `CcaFit` |
 | How can `y` be predicted from `x` with limited rank? | `ReducedRankRegression.fit` | `ReducedRankRegressionFit` |
+| How much of a prediction task lies in a scientific subspace? | `TaskComponents.fit` | `TaskComponentsFit` |
+| How much of a table task lies in a scientific subspace? | `TaskComponents.decompose` | `TaskDecompositionFit` |
 | How can `y` be predicted from `x` through PLS components? | `PlsRegression.fit` | `PlsRegressionFit` |
 | Which linear directions separate labelled classes? | `FisherDiscriminant.fit` | `FisherDiscriminantFit` |
 | How does PCA change under row and feature metrics? | `Gpca.fit` | `GpcaFit` |
@@ -40,8 +42,12 @@ definition.
   `reconstructWorking` for metric coordinates on the training block.
 - Use `project` for GPCA and LDA.
 - Use `transformX` or `transformY` for PLSC and CCA.
-- Use `predict` for reduced-rank regression and PLS regression; use `transform`
-  on a PLS fit for X-scores.
+- Use `predict` for reduced-rank regression, PLS regression, and
+  `TaskComponents.fit`; use `focusContribution` / `remainderContribution` for the
+  resolved branches of a task fit. Use `transform` / `reconstruct` /
+  `residual` on `TaskComponents.decompose` for resolved table scores and
+  reconstructions of new observations.
+- Use `transform` on a PLS fit for X-scores.
 - Use fitted encoders for GLRM and aligned multiblock models.
 - Use synthesis capabilities only when a reconstruction contract has been
   fitted explicitly.

@@ -116,7 +116,13 @@ final case class GramSvdSolver(
       // Prefer the thin Gram: XX' when n <= p, else X'X. Dense Gale still
       // materializes a full spectrum under Count, but the Gram order is min(n, p).
       val rowGram = input.rows <= input.cols
-      val selection = EigenSelection.Count(components.value, EigenOrder.LargestAlgebraic)
+      val selection =
+        if components.value == limit then EigenSelection.All
+        else
+          EigenSelection.Count(
+            components.value,
+            EigenOrder.LargestAlgebraic
+          )
       for
         gram <- if rowGram then input.transposeView.crossProduct else input.crossProduct
         _ <- MatrixOps.checkFinite("svd gram", gram)

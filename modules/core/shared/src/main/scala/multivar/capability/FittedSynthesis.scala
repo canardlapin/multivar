@@ -107,6 +107,22 @@ final class FittedBidirectionalTransform private (
       )
     yield result
 
+  /** Low-rank contribution in original coordinates without the shared preprocessing baseline. */
+  def reconstructContribution(
+      input: DMat
+  ): Either[MultivarError, DMat] =
+    reconstructContribution(MatrixView.dense(input))
+
+  def reconstructContribution(
+      input: MatrixView
+  ): Either[MultivarError, DMat] =
+    for
+      scores <- analysis.project(input)
+      working = GaleNumerics.multiply(scores, decoderValues)
+      invertible <- analysis.preprocessor.requireInvertible
+      original <- invertible.inverseContributionDense(working)
+    yield original
+
   def reconstructPartial(
       partial: RestrictedFrameTransform[?, ?],
       input: IdentifiedFeatureMatrix,

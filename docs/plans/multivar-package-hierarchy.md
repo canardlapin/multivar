@@ -57,8 +57,18 @@ GLRM. The reverse edges are forbidden.
 
 Consequently:
 
-- PLSC, CCA, reduced-rank regression and paired transfer live in
-  `family.paired`, not in generic capability or spectral files.
+- PLSC, CCA, reduced-rank regression, paired transfer, and the resolved
+  least-squares-task estimand (`TaskComponents`, `TaskResolution`,
+  `RankBudget`, task-gain accounting) live in `family.paired`, not in a
+  separate `family.task` and not in generic capability or spectral files.
+- metric-coordinate construction, orthonormal range extraction, and exact
+  local SVD/GMD execution live in `family.spectral` (`MetricRoots`,
+  `MetricCoordinates`, `OrthonormalSubspace`). Paired, CPCA, and GPCA may
+  build on that substrate; spectral must not import paired or cpca types.
+- crossed row-by-feature block CPCA (`Cpca`, `CpcaBlock.GxH` and siblings)
+  lives in `family.cpca`. It is a different estimand from Takane-style
+  focus/remainder resolution of a canonical task operator; neither package
+  reinterprets the other.
 - exact direct-sum execution lives in `family.multiblock` as
   `ExactMultiblockPrograms`; `family.spectral` knows nothing about direct sums.
 - GLRM and structured multiblock receipts live beside their family programs,
@@ -69,7 +79,10 @@ Consequently:
 
 Cross-family composition must name its owner. If a new method requires two
 families, place the adapter in the more specific family or in `workflow`; do
-not add reciprocal imports.
+not add reciprocal imports. The TaskComponents methodology is documented in
+[`multivar-task-components.md`](multivar-task-components.md): paired owns the
+estimand; spectral owns the decomposition machinery; analysis only curates
+public names.
 
 ## Source layout law
 

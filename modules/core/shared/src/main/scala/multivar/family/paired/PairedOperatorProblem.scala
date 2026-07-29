@@ -214,7 +214,11 @@ final class PairedOperatorProblem[
         sourceDense <- pairedSemantic(sourceNormalization.toDense)
         targetDense <- pairedSemantic(targetNormalization.toDense)
         scaledCrossDense = MatrixOps.scale(crossDense, crossScale)
-        whitened = GaleNumerics.multiply(sourceInverseHalf, GaleNumerics.multiply(scaledCrossDense, targetInverseHalf))
+        whitened =
+          GaleNumerics.multiply(
+            sourceInverseHalf,
+            GaleNumerics.multiply(scaledCrossDense, targetInverseHalf)
+          )
         svd <- solver.decompose(MatrixView.dense(whitened), components)
         _ <- requirePairedComponents(svd)
         component <- SpaceRef.of(
