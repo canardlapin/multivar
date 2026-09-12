@@ -38,7 +38,7 @@ ThisBuild / tlSitePublishTags := false
 // coordinate rather than a Git ProjectRef. Until Gale is on Maven Central, CI
 // and local builds install the pinned revision with tools/publish-gale-local.sh.
 lazy val galeRevision = "099832ff15c8a4a8fcf3398c7b779fb4bbc12434"
-lazy val galeVersion  = s"1.0.0-${galeRevision.take(12)}"
+lazy val galeVersion  = "0.1.0+99-099832ff-SNAPSHOT"
 
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
