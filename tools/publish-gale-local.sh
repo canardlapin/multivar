@@ -56,12 +56,12 @@ if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
   git checkout --force --detach "$gale_revision"
 fi
 
-actual_version=$(
-  "$SBT_BIN" -Dsbt.supershell=false --batch "print coreJVM/version" | tail -n 1
+version_output=$(
+  "$SBT_BIN" -Dsbt.supershell=false --batch "print coreJVM/version"
 )
 
-if [ "$actual_version" != "$gale_version" ]; then
-  echo "Gale version mismatch: build.sbt requires $gale_version but $gale_revision derives $actual_version" >&2
+if ! printf '%s\n' "$version_output" | grep -Fqx "$gale_version"; then
+  echo "Gale version mismatch: build.sbt requires $gale_version but $gale_revision did not report it" >&2
   exit 1
 fi
 
