@@ -146,8 +146,11 @@ first compile on a clean machine (CI does this automatically):
 ```
 
 Until Gale is published to Maven Central, that local install is what makes
-multivar's Maven `gale-core` coordinate resolve. After Gale ships, the same
-coordinate will resolve from Central and the script becomes optional.
+multivar's Maven `gale-core` coordinate resolve. The helper verifies that the
+pinned full-history checkout derives the exact dynver recorded in `build.sbt`,
+so the Maven dependency and source `ProjectRef` consumers cannot disagree.
+After Gale ships, the same coordinate will resolve from Central and the script
+becomes optional.
 
 Run the complete JVM and Scala.js build with:
 
