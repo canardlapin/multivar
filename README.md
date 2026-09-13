@@ -154,8 +154,11 @@ before the first compile on a clean machine (CI does this automatically):
 ```
 
 Until those dependencies are published to Maven Central, the local installs
-make Multivar's Maven coordinates resolve. Once they ship, the same
-coordinates will resolve from Central and the scripts become optional.
+make Multivar's Maven coordinates resolve. The Gale helper verifies that the
+pinned full-history checkout derives the exact dynver recorded in `build.sbt`,
+so Maven and source consumers cannot disagree; the Resample4s helper binds its
+artifact version to the exact source revision. Once those dependencies ship,
+the same coordinates will resolve from Central and the scripts become optional.
 
 Run the complete JVM and Scala.js build with:
 
