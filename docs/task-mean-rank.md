@@ -33,7 +33,7 @@ any additional count as `ConservativeCarry`.
 
 `TaskRankPlan.exhaustive` constructs every full-group sign pattern within an
 explicit materialization budget. Its p-values are counts divided by group
-size. `fixedUniform` generates a fixed budget through Resample4s integer
+cardinality. `fixedUniform` generates a fixed budget through Resample4s integer
 SplitMix64 draws; seed and budget must be set independently of response data.
 Its numerator and denominator both include the extra identity. `replayFixed`
 retains supplied signs and unique replicate identities; its validity is
