@@ -1846,3 +1846,164 @@ public final class multivar.inference.FeatureEvidenceResult implements scala.Pro
   public static multivar.inference.FeatureEvidenceResult apply(java.lang.String, java.lang.String, java.lang.String, multivar.inference.MultiplicityMethod, scala.collection.immutable.Vector<multivar.inference.FeatureTest>, multivar.inference.ValidityClaim);
   public static multivar.inference.FeatureEvidenceResult unapply(multivar.inference.FeatureEvidenceResult);
 }
+
+public final class multivar.inference.TaskRankCoordinates implements scala.Product,java.io.Serializable {
+  public java.lang.String source();
+  public java.lang.String transform();
+  public java.lang.String version();
+  public multivar.inference.TaskRankCoordinates copy(java.lang.String, java.lang.String, java.lang.String, scala.collection.immutable.Vector<java.lang.String>);
+  public multivar.inference.TaskRankCoordinates(java.lang.String, java.lang.String, java.lang.String, scala.collection.immutable.Vector<java.lang.String>);
+  public scala.collection.immutable.Vector<java.lang.String> features();
+  public static multivar.inference.TaskRankCoordinates apply(java.lang.String, java.lang.String, java.lang.String, scala.collection.immutable.Vector<java.lang.String>);
+  public static multivar.inference.TaskRankCoordinates unapply(multivar.inference.TaskRankCoordinates);
+}
+
+public final class multivar.inference.TaskRankParticipant implements scala.Product,java.io.Serializable {
+  public gale.linalg.DMat profile();
+  public java.lang.String id();
+  public multivar.inference.TaskRankParticipant copy(java.lang.String, gale.linalg.DMat);
+  public multivar.inference.TaskRankParticipant(java.lang.String, gale.linalg.DMat);
+  public static multivar.inference.TaskRankParticipant apply(java.lang.String, gale.linalg.DMat);
+  public static multivar.inference.TaskRankParticipant unapply(multivar.inference.TaskRankParticipant);
+}
+
+public final class multivar.inference.TaskRankGroup implements scala.Product,java.io.Serializable {
+  public gale.spectral.MatrixEnclosure rowMap();
+  public gale.spectral.RealInterval weight();
+  public java.lang.String id();
+  public multivar.inference.TaskRankGroup copy(java.lang.String, scala.collection.immutable.Vector<multivar.inference.TaskRankParticipant>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public multivar.inference.TaskRankGroup(java.lang.String, scala.collection.immutable.Vector<multivar.inference.TaskRankParticipant>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public scala.collection.immutable.Vector<multivar.inference.TaskRankParticipant> participants();
+  public static multivar.inference.TaskRankGroup apply(java.lang.String, scala.collection.immutable.Vector<multivar.inference.TaskRankParticipant>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public static multivar.inference.TaskRankGroup unapply(multivar.inference.TaskRankGroup);
+}
+
+public final class multivar.inference.TaskRankSigns implements scala.Product,java.io.Serializable {
+  public java.lang.String id();
+  public multivar.inference.TaskRankSigns copy(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>);
+  public multivar.inference.TaskRankSigns(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>);
+  public scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>> groups();
+  public static multivar.inference.TaskRankSigns apply(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>);
+  public static multivar.inference.TaskRankSigns unapply(multivar.inference.TaskRankSigns);
+}
+
+public abstract class multivar.inference.TaskRankMethod implements scala.Product,scala.reflect.Enum {
+  public java.lang.String version();
+  public multivar.inference.TaskRankMethod();
+  public static multivar.inference.TaskRankMethod fromOrdinal(int);
+  public static multivar.inference.TaskRankMethod valueOf(java.lang.String);
+  public static multivar.inference.TaskRankMethod[] values();
+}
+
+public final class multivar.inference.TaskRankMethod$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.TaskRankMethod);
+  public multivar.inference.TaskRankMethod fromOrdinal(int);
+  public multivar.inference.TaskRankMethod valueOf(java.lang.String);
+  public multivar.inference.TaskRankMethod[] values();
+  public static final multivar.inference.TaskRankMethod FrobeniusFeasibility;
+  public static final multivar.inference.TaskRankMethod OperatorFirstThenBound;
+}
+
+public abstract class multivar.inference.TaskRankSampling implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.TaskRankSampling();
+  public static multivar.inference.TaskRankSampling fromOrdinal(int);
+}
+
+public final class multivar.inference.TaskRankSampling$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.TaskRankSampling);
+  public multivar.inference.TaskRankSampling fromOrdinal(int);
+  public static final multivar.inference.TaskRankSampling ExhaustiveFullSignGroup;
+  public static final multivar.inference.TaskRankSampling SuppliedFixedUniformDeclaration;
+  public static final multivar.inference.TaskRankSampling$FixedUniform$ FixedUniform;
+}
+
+public final class multivar.inference.TaskRankPlan {
+  public multivar.inference.TaskRankPlan(scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<multivar.inference.TaskRankSigns>, multivar.inference.TaskRankSampling);
+  public multivar.inference.TaskRankSampling sampling();
+  public scala.collection.immutable.Vector<java.lang.Object> groupSizes();
+  public scala.collection.immutable.Vector<multivar.inference.TaskRankSigns> draws();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.TaskRankPlan> exhaustive(scala.collection.immutable.Vector<java.lang.Object>, int);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.TaskRankPlan> fixedUniform(scala.collection.immutable.Vector<java.lang.Object>, int, long);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.TaskRankPlan> replayFixed(scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<multivar.inference.TaskRankSigns>);
+}
+
+public abstract class multivar.inference.TaskRankDecision implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.TaskRankDecision();
+  public static multivar.inference.TaskRankDecision fromOrdinal(int);
+  public static multivar.inference.TaskRankDecision valueOf(java.lang.String);
+  public static multivar.inference.TaskRankDecision[] values();
+}
+
+public final class multivar.inference.TaskRankDecision$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.TaskRankDecision);
+  public multivar.inference.TaskRankDecision fromOrdinal(int);
+  public multivar.inference.TaskRankDecision valueOf(java.lang.String);
+  public multivar.inference.TaskRankDecision[] values();
+  public static final multivar.inference.TaskRankDecision Ambiguous;
+  public static final multivar.inference.TaskRankDecision ConservativeCarry;
+  public static final multivar.inference.TaskRankDecision Counted;
+  public static final multivar.inference.TaskRankDecision Excluded;
+}
+
+public final class multivar.inference.TaskRankComparison implements scala.Product,java.io.Serializable {
+  public double statisticLower();
+  public double statisticUpper();
+  public double thresholdLower();
+  public double thresholdUpper();
+  public int rank();
+  public multivar.inference.TaskRankComparison copy(int, multivar.inference.TaskRankDecision, double, double, double, double);
+  public multivar.inference.TaskRankComparison(int, multivar.inference.TaskRankDecision, double, double, double, double);
+  public multivar.inference.TaskRankDecision decision();
+  public static multivar.inference.TaskRankComparison apply(int, multivar.inference.TaskRankDecision, double, double, double, double);
+  public static multivar.inference.TaskRankComparison unapply(multivar.inference.TaskRankComparison);
+}
+
+public final class multivar.inference.TaskRankDrawReceipt implements scala.Product,java.io.Serializable {
+  public java.lang.String id();
+  public multivar.inference.TaskRankDrawReceipt copy(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>, scala.collection.immutable.Vector<multivar.inference.TaskRankComparison>);
+  public multivar.inference.TaskRankDrawReceipt(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>, scala.collection.immutable.Vector<multivar.inference.TaskRankComparison>);
+  public scala.collection.immutable.Vector<multivar.inference.TaskRankComparison> comparisons();
+  public scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>> signs();
+  public static multivar.inference.TaskRankDrawReceipt apply(java.lang.String, scala.collection.immutable.Vector<scala.collection.immutable.Vector<java.lang.Object>>, scala.collection.immutable.Vector<multivar.inference.TaskRankComparison>);
+  public static multivar.inference.TaskRankDrawReceipt unapply(multivar.inference.TaskRankDrawReceipt);
+}
+
+public final class multivar.inference.TaskRankGroupReceipt implements scala.Product,java.io.Serializable {
+  public gale.spectral.MatrixEnclosure rowMap();
+  public gale.spectral.RealInterval weight();
+  public java.lang.String id();
+  public multivar.inference.TaskRankGroupReceipt copy(java.lang.String, scala.collection.immutable.Vector<java.lang.String>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public multivar.inference.TaskRankGroupReceipt(java.lang.String, scala.collection.immutable.Vector<java.lang.String>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public scala.collection.immutable.Vector<java.lang.String> participantIds();
+  public static multivar.inference.TaskRankGroupReceipt apply(java.lang.String, scala.collection.immutable.Vector<java.lang.String>, gale.spectral.MatrixEnclosure, gale.spectral.RealInterval);
+  public static multivar.inference.TaskRankGroupReceipt unapply(multivar.inference.TaskRankGroupReceipt);
+}
+
+public final class multivar.inference.TaskRankReceipt implements scala.Product,java.io.Serializable {
+  public int lowerRankBound();
+  public java.lang.String estimand();
+  public java.lang.String transformationGroup();
+  public multivar.inference.TaskRankCoordinates coordinates();
+  public multivar.inference.TaskRankMethod method();
+  public multivar.inference.TaskRankReceipt copy(multivar.inference.TaskRankMethod, multivar.inference.TaskRankCoordinates, multivar.inference.TaskRankSampling, scala.collection.immutable.Vector<multivar.inference.TaskRankGroupReceipt>, scala.collection.immutable.Vector<multivar.inference.TaskRankDrawReceipt>, scala.collection.immutable.Vector<scala.math.BigInt>, scala.math.BigInt, scala.math.BigInt, scala.math.BigInt, scala.collection.immutable.Vector<java.lang.Object>, int);
+  public multivar.inference.TaskRankReceipt(multivar.inference.TaskRankMethod, multivar.inference.TaskRankCoordinates, multivar.inference.TaskRankSampling, scala.collection.immutable.Vector<multivar.inference.TaskRankGroupReceipt>, scala.collection.immutable.Vector<multivar.inference.TaskRankDrawReceipt>, scala.collection.immutable.Vector<scala.math.BigInt>, scala.math.BigInt, scala.math.BigInt, scala.math.BigInt, scala.collection.immutable.Vector<java.lang.Object>, int);
+  public multivar.inference.TaskRankSampling sampling();
+  public scala.collection.immutable.Vector<java.lang.Object> pValues();
+  public scala.collection.immutable.Vector<java.lang.Object> testedRanks();
+  public scala.collection.immutable.Vector<multivar.inference.TaskRankDrawReceipt> draws();
+  public scala.collection.immutable.Vector<multivar.inference.TaskRankGroupReceipt> groups();
+  public scala.collection.immutable.Vector<scala.math.BigInt> counts();
+  public scala.math.BigInt alphaDenominator();
+  public scala.math.BigInt alphaNumerator();
+  public scala.math.BigInt denominator();
+  public static multivar.inference.TaskRankReceipt apply(multivar.inference.TaskRankMethod, multivar.inference.TaskRankCoordinates, multivar.inference.TaskRankSampling, scala.collection.immutable.Vector<multivar.inference.TaskRankGroupReceipt>, scala.collection.immutable.Vector<multivar.inference.TaskRankDrawReceipt>, scala.collection.immutable.Vector<scala.math.BigInt>, scala.math.BigInt, scala.math.BigInt, scala.math.BigInt, scala.collection.immutable.Vector<java.lang.Object>, int);
+  public static multivar.inference.TaskRankReceipt unapply(multivar.inference.TaskRankReceipt);
+}
+
+public final class multivar.inference.TaskMeanRank {
+  public static scala.Function0<java.lang.Object> run$default$7();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.TaskRankReceipt> run(scala.collection.immutable.Vector<multivar.inference.TaskRankGroup>, multivar.inference.TaskRankCoordinates, multivar.inference.TaskRankPlan, multivar.inference.TaskRankMethod, scala.math.BigInt, scala.math.BigInt, scala.Function0<java.lang.Object>);
+}

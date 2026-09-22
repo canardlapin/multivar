@@ -173,3 +173,18 @@ multivar.inference.FeatureNullEvidence
 multivar.inference.FeatureTest
 multivar.inference.FeatureEvidence
 multivar.inference.FeatureEvidenceResult
+
+# Certified task-mean rank procedures and their typed replay receipts.
+multivar.inference.TaskRankCoordinates
+multivar.inference.TaskRankParticipant
+multivar.inference.TaskRankGroup
+multivar.inference.TaskRankSigns
+multivar.inference.TaskRankMethod
+multivar.inference.TaskRankSampling
+multivar.inference.TaskRankPlan
+multivar.inference.TaskRankDecision
+multivar.inference.TaskRankComparison
+multivar.inference.TaskRankDrawReceipt
+multivar.inference.TaskRankGroupReceipt
+multivar.inference.TaskRankReceipt
+multivar.inference.TaskMeanRank
