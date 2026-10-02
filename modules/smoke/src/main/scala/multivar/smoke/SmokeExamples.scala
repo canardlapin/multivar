@@ -1,7 +1,7 @@
 package multivar
 package smoke
 
-import gale.linalg.Matrix
+import gale.linalg.{DMat, Matrix}
 import multivar.analysis.*
 import multivar.inference.*
 import multivar.ir.SchemaVersion
@@ -58,3 +58,17 @@ object SmokeExamples:
           Seed.fromLong(1729L)
         ))
         .summary
+
+  /** Generic candidate arithmetic, without scientific calibration admission. */
+  def completeRankArithmeticSurvivesPublication: Either[InferenceError, (Int, Int, Double)] =
+    for
+      basis <- CanonicalResidualBasis.from(DMat.tabulate(6, 1)((_, _) => 1.0))
+      left <- basis.project(DMat.tabulate(6, 1)((i, _) => i.toDouble))
+      right <- basis.project(DMat.tabulate(6, 1)((i, _) => (i * i).toDouble))
+      problem <- StepwiseCanonicalRank.from(left, right)
+      rows <- RowCount(basis.matrix.cols)
+      draws <- MonteCarloDraws(5)
+      alpha <- Alpha(.05)
+      result <- FixedCanonicalRank.run(problem, PermutationAction.unrestricted(rows), Seed.fromLong(1729L), draws, alpha,
+        sampling = CanonicalRankSampling.DistinctNonIdentity(100))
+    yield (result.correlations.size, result.receipts.size, result.qrRankTolerance)

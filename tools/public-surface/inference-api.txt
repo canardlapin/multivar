@@ -35,6 +35,7 @@ public final class multivar.inference.InferenceError$ implements scala.deriving.
   public int ordinal(multivar.inference.InferenceError);
   public multivar.inference.InferenceError fromOrdinal(int);
   public static final multivar.inference.InferenceError$BudgetExhausted$ BudgetExhausted;
+  public static final multivar.inference.InferenceError$CanonicalDrawBudgetExhausted$ CanonicalDrawBudgetExhausted;
   public static final multivar.inference.InferenceError$ComponentOutOfRange$ ComponentOutOfRange;
   public static final multivar.inference.InferenceError$DuplicateComponent$ DuplicateComponent;
   public static final multivar.inference.InferenceError$EmptyComponentSet$ EmptyComponentSet;
@@ -940,6 +941,111 @@ public final class multivar.inference.Evidence$ implements scala.deriving.Mirror
   public static final multivar.inference.Evidence$Computed$ Computed;
   public static final multivar.inference.Evidence$Unavailable$ Unavailable;
   public static final multivar.inference.Evidence<scala.runtime.Nothing$> NotRequested;
+}
+
+public abstract class multivar.inference.CanonicalResidualMethod implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.CanonicalResidualMethod();
+  public static multivar.inference.CanonicalResidualMethod fromOrdinal(int);
+}
+
+public final class multivar.inference.CanonicalResidualMethod$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.CanonicalResidualMethod);
+  public multivar.inference.CanonicalResidualMethod fromOrdinal(int);
+  public static final multivar.inference.CanonicalResidualMethod HuhJhun;
+  public static final multivar.inference.CanonicalResidualMethod$Theil$ Theil;
+}
+
+public final class multivar.inference.CanonicalResidualBasis {
+  public double lawTolerance();
+  public double qrRankTolerance();
+  public gale.linalg.DMat matrix();
+  public int nuisanceRank();
+  public long plannedElements();
+  public long project$default$2();
+  public multivar.inference.CanonicalResidualBasis(int, gale.linalg.DMat, multivar.inference.CanonicalResidualMethod, long);
+  public multivar.inference.CanonicalResidualMethod method();
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> project(gale.linalg.DMat, long);
+  public static long from$default$3();
+  public static multivar.inference.CanonicalResidualMethod from$default$2();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.CanonicalResidualBasis> from(gale.linalg.DMat, multivar.inference.CanonicalResidualMethod, long);
+}
+
+public final class multivar.inference.StepwiseCanonicalRank {
+  public double qrRankTolerance();
+  public gale.linalg.DMat leftVariables();
+  public gale.linalg.DMat rightVariables();
+  public gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
+  public int candidateRank();
+  public long plannedElements();
+  public multivar.inference.StepwiseCanonicalRank(gale.linalg.DMat, gale.linalg.DMat, scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<java.lang.Object>, long, gale.spectral.SpectralDiagnostics, scala.collection.immutable.Vector<scala.Tuple2<gale.linalg.DMat, gale.linalg.DMat>>);
+  public scala.collection.immutable.Vector<java.lang.Object> correlations();
+  public scala.collection.immutable.Vector<java.lang.Object> observedWilks();
+  public scala.util.Either<multivar.inference.InferenceError, scala.collection.immutable.Vector<java.lang.Object>> nullStatistics(resample4s.core.Permutation);
+  public scala.util.Either<multivar.inference.InferenceError, scala.collection.immutable.Vector<scala.Tuple2<java.lang.Object, gale.spectral.SpectralDiagnostics>>> nullStatisticsWithDiagnostics(resample4s.core.Permutation);
+  public static long from$default$3();
+  public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> crossWilks(gale.linalg.DMat, gale.linalg.DMat, scala.Function1<java.lang.Object, java.lang.Object>);
+  public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> wilks(scala.collection.immutable.Vector<java.lang.Object>);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.family.paired.CcaFit> classical(gale.linalg.DMat, gale.linalg.DMat);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.StepwiseCanonicalRank> from(gale.linalg.DMat, gale.linalg.DMat, long);
+  public static scala.util.Either<multivar.inference.InferenceError, scala.Tuple2<java.lang.Object, gale.spectral.SpectralDiagnostics>> crossFit(gale.linalg.DMat, gale.linalg.DMat, scala.Function1<java.lang.Object, java.lang.Object>);
+}
+
+public abstract class multivar.inference.CanonicalRankRefitMethod implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.CanonicalRankRefitMethod();
+  public static multivar.inference.CanonicalRankRefitMethod fromOrdinal(int);
+  public static multivar.inference.CanonicalRankRefitMethod valueOf(java.lang.String);
+  public static multivar.inference.CanonicalRankRefitMethod[] values();
+}
+
+public final class multivar.inference.CanonicalRankRefitMethod$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.CanonicalRankRefitMethod);
+  public multivar.inference.CanonicalRankRefitMethod fromOrdinal(int);
+  public multivar.inference.CanonicalRankRefitMethod valueOf(java.lang.String);
+  public multivar.inference.CanonicalRankRefitMethod[] values();
+  public static final multivar.inference.CanonicalRankRefitMethod ExactPermutedTailQrCrossSvd;
+}
+
+public abstract class multivar.inference.CanonicalRankSampling implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.CanonicalRankSampling();
+  public static multivar.inference.CanonicalRankSampling fromOrdinal(int);
+}
+
+public final class multivar.inference.CanonicalRankSampling$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.CanonicalRankSampling);
+  public multivar.inference.CanonicalRankSampling fromOrdinal(int);
+  public static final multivar.inference.CanonicalRankSampling WithReplacement;
+  public static final multivar.inference.CanonicalRankSampling$DistinctNonIdentity$ DistinctNonIdentity;
+}
+
+public final class multivar.inference.FixedCanonicalRank {
+  public static long run$default$6();
+  public static long run$default$8();
+  public static multivar.inference.CanonicalRankSampling run$default$7();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.FixedCanonicalRankResult> run(multivar.inference.StepwiseCanonicalRank, multivar.inference.PermutationAction, long, int, double, long, multivar.inference.CanonicalRankSampling, long);
+}
+
+public final class multivar.inference.FixedCanonicalRankResult {
+  public boolean allNullFitsExtremeCertified();
+  public double maximumNullOrthogonalityError();
+  public double maximumNullSvdResidual();
+  public double qrRankTolerance();
+  public gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
+  public int candidateDraws();
+  public int detectableRank();
+  public int duplicateDraws();
+  public int identityDraws();
+  public long completedCompactFits();
+  public multivar.inference.CanonicalRankRefitMethod refitMethod();
+  public multivar.inference.CanonicalRankSampling sampling();
+  public multivar.inference.FixedCanonicalRankResult(scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt>, scala.collection.immutable.Vector<java.lang.Object>, int, multivar.inference.CanonicalRankRefitMethod, long, int, multivar.inference.CanonicalRankSampling, multivar.inference.PermutationAction, int, int, scala.collection.immutable.Vector<java.lang.Object>, gale.spectral.SpectralDiagnostics, double, double, double, boolean);
+  public multivar.inference.PermutationAction action();
+  public scala.collection.immutable.Vector<java.lang.Object> adjustedPValues();
+  public scala.collection.immutable.Vector<java.lang.Object> correlations();
+  public scala.collection.immutable.Vector<java.lang.Object> sampledCandidateIds();
+  public scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt> receipts();
 }
 
 public final class multivar.inference.ReplicateAssignment implements scala.Product,java.io.Serializable {

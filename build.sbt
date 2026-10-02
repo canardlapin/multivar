@@ -44,6 +44,9 @@ lazy val galeVersion  = "0.1.0+99-099832ff-SNAPSHOT"
 // publishable without a sibling source checkout.
 lazy val resample4sRevision = "6bc4172a966c92f1b06811eac64ac2bada9fef9b"
 lazy val resample4sVersion  = s"0.1.0-${resample4sRevision.take(12)}"
+// Coordinated source consumers may share one exact resampling provider graph.
+// Standalone/public artifact builds retain the revision-tagged dependency.
+lazy val resample4sSourceBuild = sys.props.get("multivar.resample4s.build.uri").map(uri)
 
 lazy val commonSettings = Seq(
   scalacOptions ++= Seq(
@@ -109,9 +112,14 @@ lazy val inference =
     .settings(
       name := "multivar-inference",
       description := "Typed resampling-based inference for multivar models.",
-      libraryDependencies +=
-        "io.github.canardlapin" %%% "resample4s" % resample4sVersion
+      libraryDependencies ++= (if (resample4sSourceBuild.isEmpty)
+        Seq("io.github.canardlapin" %%% "resample4s" % resample4sVersion)
+      else Seq.empty)
     )
+    .jvmConfigure(project => resample4sSourceBuild.fold(project)(build =>
+      project.dependsOn(ProjectRef(build, "apiJVM"))))
+    .jsConfigure(project => resample4sSourceBuild.fold(project)(build =>
+      project.dependsOn(ProjectRef(build, "apiJS"))))
     .jvmSettings(mimaSettings)
     .jsSettings(jsSettings)
 

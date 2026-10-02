@@ -101,6 +101,13 @@ multivar.inference.UnavailableReason
 multivar.inference.Evidence
 
 # Monte Carlo planning, execution, and receipts.
+multivar.inference.CanonicalResidualMethod
+multivar.inference.CanonicalResidualBasis
+multivar.inference.StepwiseCanonicalRank
+multivar.inference.CanonicalRankRefitMethod
+multivar.inference.CanonicalRankSampling
+multivar.inference.FixedCanonicalRank
+multivar.inference.FixedCanonicalRankResult
 multivar.inference.ReplicateAssignment
 multivar.inference.ReplicatePlan
 multivar.inference.ReplicateProvenance

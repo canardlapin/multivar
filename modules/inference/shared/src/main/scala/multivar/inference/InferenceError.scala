@@ -51,6 +51,7 @@ enum InferenceError:
   case UnitBeyondRank(unit: UnitId, rank: Int)
   case ReplicateFailure(replicate: ReplicateId, cause: InferenceError)
   case BudgetExhausted(consumed: Int, allocated: Int)
+  case CanonicalDrawBudgetExhausted(candidates: Int, accepted: Int, requested: Int)
   case UnsupportedEvidence(requested: RequestedEvidence)
   case UnsupportedUnitPolicy(requested: UnitPolicy)
 
@@ -127,6 +128,8 @@ enum InferenceError:
         s"replicate ${replicate.value} failed: ${cause.message}"
       case BudgetExhausted(consumed, allocated) =>
         s"Monte Carlo budget exhausted after $consumed of $allocated draws"
+      case CanonicalDrawBudgetExhausted(candidates, accepted, requested) =>
+        s"canonical transform sampling exhausted $candidates candidates after accepting $accepted of $requested distinct non-identity transforms"
       case UnsupportedEvidence(requested) =>
         s"requested evidence '$requested' is unavailable from the significance ladder"
       case UnsupportedUnitPolicy(requested) =>
