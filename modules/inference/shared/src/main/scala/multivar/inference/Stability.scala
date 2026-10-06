@@ -38,7 +38,9 @@ final case class VectorStabilityReducer private (
       wasSelected: Boolean,
       ambiguousMatch: Boolean
   ): Either[InferenceError, VectorStabilityReducer] =
-    if values.length != dimension then
+    if count == Int.MaxValue then
+      Left(InferenceError.UnsupportedProblem("vector stability replicate count overflow"))
+    else if values.length != dimension then
       Left(InferenceError.RowCountMismatch("stability vector", dimension, values.length))
     else
       val nextMeans = means.clone
@@ -52,7 +54,9 @@ final case class VectorStabilityReducer private (
         nextMeans(i) += delta / nextCount
         nextM2(i) += delta * (value - nextMeans(i))
         i += 1
-      Right(VectorStabilityReducer(
+      if nextMeans.exists(x => !x.isFinite) || nextM2.exists(x => !x.isFinite || x < 0) then
+        Left(InferenceError.NumericalFailure("vector stability", "moment accumulation exceeded finite nonnegative range"))
+      else Right(VectorStabilityReducer(
         key,
         nextCount,
         selected + (if wasSelected then 1 else 0),

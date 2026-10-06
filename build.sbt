@@ -37,8 +37,8 @@ ThisBuild / tlSitePublishTags := false
 // Gale is a Maven dependency so published multivar POMs declare a resolvable
 // coordinate rather than a Git ProjectRef. Until Gale is on Maven Central, CI
 // and local builds install the pinned revision with tools/publish-gale-local.sh.
-lazy val galeRevision = "099832ff15c8a4a8fcf3398c7b779fb4bbc12434"
-lazy val galeVersion  = "0.1.0+99-099832ff-SNAPSHOT"
+lazy val galeRevision = "ce84e51c2123abd3cddc41a5f1c9540f79199fa0"
+lazy val galeVersion  = "0.1.0+117-ce84e51c-SNAPSHOT"
 
 // Resample4s is likewise a Maven dependency so multivar-inference remains
 // publishable without a sibling source checkout.

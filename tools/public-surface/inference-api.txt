@@ -1136,6 +1136,7 @@ public final class multivar.inference.ExecutionPolicyMismatch$ implements scala.
   public static final multivar.inference.ExecutionPolicyMismatch Alpha;
   public static final multivar.inference.ExecutionPolicyMismatch BatchSize;
   public static final multivar.inference.ExecutionPolicyMismatch FixedMonteCarloUnsupported;
+  public static final multivar.inference.ExecutionPolicyMismatch MonteCarloMode;
   public static final multivar.inference.ExecutionPolicyMismatch PerRungDraws;
   public static final multivar.inference.ExecutionPolicyMismatch SequentialBoundary;
 }
@@ -1187,7 +1188,9 @@ public final class multivar.inference.ExactLadderRun<S, K extends multivar.infer
 }
 
 public final class multivar.inference.InferenceExecutor {
+  public static <F, S, K extends multivar.inference.TargetKind, N extends multivar.inference.NullKind, D extends multivar.inference.DesignKind> scala.util.Either<multivar.inference.InferenceError, multivar.inference.ExactLadderRun<S, K>> runProgram(S, multivar.inference.InferenceProgram<F, K, N, D>, multivar.inference.ExactLadderProtocol<S, F, K, N>, multivar.inference.FixedLadderExecutionConfig);
   public static <F, S, K extends multivar.inference.TargetKind, N extends multivar.inference.NullKind, D extends multivar.inference.DesignKind> scala.util.Either<multivar.inference.InferenceError, multivar.inference.ExactLadderRun<S, K>> runProgram(S, multivar.inference.InferenceProgram<F, K, N, D>, multivar.inference.ExactLadderProtocol<S, F, K, N>, multivar.inference.LadderExecutionConfig);
+  public static <S, F, K extends multivar.inference.TargetKind, N extends multivar.inference.NullKind> scala.util.Either<multivar.inference.InferenceError, multivar.inference.ExactLadderRun<S, K>> runLadder(S, multivar.inference.ExactLadderProtocol<S, F, K, N>, multivar.inference.FixedLadderExecutionConfig);
   public static <S, F, K extends multivar.inference.TargetKind, N extends multivar.inference.NullKind> scala.util.Either<multivar.inference.InferenceError, multivar.inference.ExactLadderRun<S, K>> runLadder(S, multivar.inference.ExactLadderProtocol<S, F, K, N>, multivar.inference.LadderExecutionConfig);
 }
 
@@ -1951,4 +1954,256 @@ public final class multivar.inference.FeatureEvidenceResult implements scala.Pro
   public scala.collection.immutable.Vector<multivar.inference.FeatureTest> tests();
   public static multivar.inference.FeatureEvidenceResult apply(java.lang.String, java.lang.String, java.lang.String, multivar.inference.MultiplicityMethod, scala.collection.immutable.Vector<multivar.inference.FeatureTest>, multivar.inference.ValidityClaim);
   public static multivar.inference.FeatureEvidenceResult unapply(multivar.inference.FeatureEvidenceResult);
+}
+
+public final class multivar.inference.ProfileBootstrapCounts {
+  public int units();
+  public long meanProfiles$default$3();
+  public multivar.inference.ProfileBootstrapCounts(scala.collection.immutable.Vector<java.lang.Object>);
+  public scala.Function0<java.lang.Object> meanProfiles$default$4();
+  public scala.collection.immutable.Vector<java.lang.Object> multiplicities();
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> meanProfiles(gale.linalg.DMat, int, long, scala.Function0<java.lang.Object>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileDeletionCounts> deleteOne(int);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileBootstrapCounts> fromDraw(resample4s.core.Draw);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileBootstrapCounts> fromIndices(int, scala.collection.immutable.IndexedSeq<java.lang.Object>);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileBootstrapCounts> identity(int);
+}
+
+public abstract class multivar.inference.ProfileBootstrapMode implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.ProfileBootstrapMode();
+  public static multivar.inference.ProfileBootstrapMode fromOrdinal(int);
+  public static multivar.inference.ProfileBootstrapMode valueOf(java.lang.String);
+  public static multivar.inference.ProfileBootstrapMode[] values();
+}
+
+public final class multivar.inference.ProfileBootstrapMode$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.ProfileBootstrapMode);
+  public multivar.inference.ProfileBootstrapMode fromOrdinal(int);
+  public multivar.inference.ProfileBootstrapMode valueOf(java.lang.String);
+  public multivar.inference.ProfileBootstrapMode[] values();
+  public static final multivar.inference.ProfileBootstrapMode Auto;
+  public static final multivar.inference.ProfileBootstrapMode Direct;
+  public static final multivar.inference.ProfileBootstrapMode Reduced;
+}
+
+public abstract class multivar.inference.ProfileBootstrapPath implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.ProfileBootstrapPath();
+  public static multivar.inference.ProfileBootstrapPath fromOrdinal(int);
+  public static multivar.inference.ProfileBootstrapPath valueOf(java.lang.String);
+  public static multivar.inference.ProfileBootstrapPath[] values();
+}
+
+public final class multivar.inference.ProfileBootstrapPath$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.ProfileBootstrapPath);
+  public multivar.inference.ProfileBootstrapPath fromOrdinal(int);
+  public multivar.inference.ProfileBootstrapPath valueOf(java.lang.String);
+  public multivar.inference.ProfileBootstrapPath[] values();
+  public static final multivar.inference.ProfileBootstrapPath Direct;
+  public static final multivar.inference.ProfileBootstrapPath QrDirectRefinement;
+  public static final multivar.inference.ProfileBootstrapPath QrReduced;
+}
+
+public final class multivar.inference.ProfileBootstrapOptions implements scala.Product,java.io.Serializable {
+  public double absoluteZeroTolerance();
+  public double accuracyTolerance();
+  public double relativeRankTolerance();
+  public int expectedReplicates();
+  public long maxWorkingBytes();
+  public multivar.inference.ProfileBootstrapMode mode();
+  public multivar.inference.ProfileBootstrapOptions copy(multivar.inference.ProfileBootstrapMode, int, double, double, double, long);
+  public multivar.inference.ProfileBootstrapOptions(multivar.inference.ProfileBootstrapMode, int, double, double, double, long);
+  public static double $lessinit$greater$default$3();
+  public static double $lessinit$greater$default$4();
+  public static double $lessinit$greater$default$5();
+  public static int $lessinit$greater$default$2();
+  public static long $lessinit$greater$default$6();
+  public static multivar.inference.ProfileBootstrapMode $lessinit$greater$default$1();
+  public static multivar.inference.ProfileBootstrapOptions apply(multivar.inference.ProfileBootstrapMode, int, double, double, double, long);
+  public static multivar.inference.ProfileBootstrapOptions unapply(multivar.inference.ProfileBootstrapOptions);
+}
+
+public final class multivar.inference.ProfileBootstrapPreparation implements scala.Product,java.io.Serializable {
+  public double maxOrthogonalityError();
+  public double maxProfileReconstructionError();
+  public int coordinateDimension();
+  public long estimatedWorkingBytes();
+  public multivar.inference.ProfileBootstrapPath path();
+  public multivar.inference.ProfileBootstrapPreparation copy(multivar.inference.ProfileBootstrapPath, long, int, double, double);
+  public multivar.inference.ProfileBootstrapPreparation(multivar.inference.ProfileBootstrapPath, long, int, double, double);
+  public static multivar.inference.ProfileBootstrapPreparation apply(multivar.inference.ProfileBootstrapPath, long, int, double, double);
+  public static multivar.inference.ProfileBootstrapPreparation unapply(multivar.inference.ProfileBootstrapPreparation);
+}
+
+public final class multivar.inference.MeanProfileBootstrapFit extends multivar.inference.MeanProfileFit {
+  public multivar.inference.MeanProfileBootstrapFit(multivar.inference.MeanProfileBootstrapCore, multivar.inference.ProfileBootstrapCounts, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, multivar.inference.ProfileBootstrapPath);
+  public multivar.inference.ProfileBootstrapCounts counts();
+}
+
+public final class multivar.inference.ProfileBootstrapProjection {
+  public boolean scores$default$2();
+  public gale.linalg.DMat coordinates();
+  public multivar.inference.ProfileBootstrapProjection(multivar.inference.MeanProfileBootstrapCore, gale.linalg.DMat);
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> scores(multivar.inference.MeanProfileBootstrapFit, boolean);
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> scores(multivar.inference.MeanProfileDeletionFit);
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> scores(multivar.inference.MeanProfileDeletionFit, boolean);
+}
+
+public final class multivar.inference.MeanProfileBootstrapCore {
+  public int coordinateDimension();
+  public int coordinatesPerUnit();
+  public int featureCount();
+  public int project$default$2();
+  public int unitCount();
+  public multivar.inference.MeanProfileBootstrapCore(gale.linalg.DMat, int, int, gale.linalg.DMat, scala.Option<gale.linalg.DMat>, double, scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<java.lang.Object>, multivar.inference.ProfileBootstrapOptions, multivar.inference.ProfileBootstrapPreparation);
+  public multivar.inference.ProfileBootstrapOptions options();
+  public multivar.inference.ProfileBootstrapPreparation preparation();
+  public scala.Function0<java.lang.Object> observed$default$1();
+  public scala.Function0<java.lang.Object> project$default$3();
+  public scala.Function0<java.lang.Object> refit$default$2();
+  public scala.Function0<java.lang.Object> refitDeletion$default$2();
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> basisBlock(int, int);
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> liftBlock(gale.linalg.DMat, int, int);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.MeanProfileBootstrapFit> observed(scala.Function0<java.lang.Object>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.MeanProfileBootstrapFit> refit(multivar.inference.ProfileBootstrapCounts, scala.Function0<java.lang.Object>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.MeanProfileDeletionFit> refitDeletion(multivar.inference.ProfileDeletionCounts, scala.Function0<java.lang.Object>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileBootstrapProjection> project(gale.linalg.DMat, int, scala.Function0<java.lang.Object>);
+}
+
+public final class multivar.inference.MeanProfileBootstrap {
+  public static multivar.inference.ProfileBootstrapOptions prepare$default$3();
+  public static scala.Function0<java.lang.Object> prepare$default$4();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.MeanProfileBootstrapCore> prepare(gale.linalg.DMat, int, multivar.inference.ProfileBootstrapOptions, scala.Function0<java.lang.Object>);
+}
+
+public final class multivar.inference.ReducedLoadingMoments {
+  public int dimension();
+  public long count();
+  public multivar.inference.Evidence<multivar.inference.ReducedMomentSummary> result();
+  public multivar.inference.ReducedLoadingMoments(multivar.inference.StabilityKey, int, long, double[], double[]);
+  public multivar.inference.StabilityKey key();
+  public scala.Function0<java.lang.Object> addBatch$default$2();
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ReducedLoadingMoments> add(gale.linalg.DVec);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ReducedLoadingMoments> addBatch(scala.collection.Iterator<gale.linalg.DVec>, scala.Function0<java.lang.Object>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ReducedLoadingMoments> combine(multivar.inference.ReducedLoadingMoments);
+  public static long empty$default$3();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.ReducedLoadingMoments> empty(multivar.inference.StabilityKey, int, long);
+}
+
+public final class multivar.inference.ReducedMomentSummary {
+  public gale.linalg.DMat covariance();
+  public gale.linalg.DVec mean();
+  public long replicates();
+  public multivar.inference.ReducedMomentSummary(multivar.inference.StabilityKey, long, gale.linalg.DVec, gale.linalg.DMat);
+  public multivar.inference.StabilityKey key();
+  public scala.Function0<java.lang.Object> projectRows$default$2();
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProjectedMomentSummary> projectRows(gale.linalg.DMat, scala.Function0<java.lang.Object>);
+}
+
+public final class multivar.inference.ProjectedMomentSummary implements scala.Product,java.io.Serializable {
+  public gale.linalg.DVec mean();
+  public gale.linalg.DVec standardDeviation();
+  public gale.linalg.DVec variance();
+  public long replicates();
+  public multivar.inference.ProjectedMomentSummary copy(multivar.inference.StabilityKey, long, gale.linalg.DVec, gale.linalg.DVec, gale.linalg.DVec);
+  public multivar.inference.ProjectedMomentSummary(multivar.inference.StabilityKey, long, gale.linalg.DVec, gale.linalg.DVec, gale.linalg.DVec);
+  public multivar.inference.StabilityKey key();
+  public static multivar.inference.ProjectedMomentSummary apply(multivar.inference.StabilityKey, long, gale.linalg.DVec, gale.linalg.DVec, gale.linalg.DVec);
+  public static multivar.inference.ProjectedMomentSummary unapply(multivar.inference.ProjectedMomentSummary);
+}
+
+public abstract class multivar.inference.MeanProfileFit {
+  public boolean coordinates$default$1();
+  public boolean loadingBlock$default$3();
+  public gale.linalg.DMat coordinates(boolean);
+  public gale.linalg.DMat leftDirections();
+  public gale.linalg.DMat loadingCoordinates();
+  public gale.linalg.DVec singularValues();
+  public int rank();
+  public multivar.inference.MeanProfileBootstrapCore owner();
+  public multivar.inference.MeanProfileFit(multivar.inference.MeanProfileBootstrapCore, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, multivar.inference.ProfileBootstrapPath);
+  public multivar.inference.ProfileBootstrapPath path();
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> loadingBlock(int, int, boolean);
+}
+
+public final class multivar.inference.ProfileDeletionCounts {
+  public int removedUnit();
+  public int sampleSize();
+  public int units();
+  public long meanProfiles$default$3();
+  public multivar.inference.ProfileBootstrapCounts source();
+  public multivar.inference.ProfileDeletionCounts(multivar.inference.ProfileBootstrapCounts, int, scala.collection.immutable.Vector<java.lang.Object>);
+  public scala.Function0<java.lang.Object> meanProfiles$default$4();
+  public scala.collection.immutable.Vector<java.lang.Object> multiplicities();
+  public scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> meanProfiles(gale.linalg.DMat, int, long, scala.Function0<java.lang.Object>);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.ProfileDeletionCounts> fromBootstrap(multivar.inference.ProfileBootstrapCounts, int);
+}
+
+public final class multivar.inference.MeanProfileDeletionFit extends multivar.inference.MeanProfileFit {
+  public multivar.inference.MeanProfileDeletionFit(multivar.inference.MeanProfileBootstrapCore, multivar.inference.ProfileDeletionCounts, gale.linalg.DVec, gale.linalg.DMat, gale.linalg.DMat, multivar.inference.ProfileBootstrapPath);
+  public multivar.inference.ProfileDeletionCounts counts();
+}
+
+public final class multivar.inference.StudentizedValue {
+  public double estimate();
+  public double standardError();
+  public multivar.inference.StudentizedValue(double, double);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedValue> apply(double, double);
+}
+
+public final class multivar.inference.JackknifeStandardError {
+  public static scala.Function0<java.lang.Object> compute$default$3();
+  public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> compute(scala.collection.immutable.IndexedSeq<java.lang.Object>, int, scala.Function0<java.lang.Object>);
+}
+
+public final class multivar.inference.StudentizedDraw implements scala.Product,java.io.Serializable {
+  public int id();
+  public multivar.inference.StudentizedDraw copy(int, scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedValue>);
+  public multivar.inference.StudentizedDraw(int, scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedValue>);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedValue> value();
+  public static multivar.inference.StudentizedDraw apply(int, scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedValue>);
+  public static multivar.inference.StudentizedDraw unapply(multivar.inference.StudentizedDraw);
+}
+
+public final class multivar.inference.StudentizedIntervalOptions implements scala.Product,java.io.Serializable {
+  public double confidenceLevel();
+  public double minimumStandardError();
+  public long maxWorkingBytes();
+  public multivar.inference.StudentizedIntervalOptions copy(double, double, long);
+  public multivar.inference.StudentizedIntervalOptions(double, double, long);
+  public static double $lessinit$greater$default$2();
+  public static long $lessinit$greater$default$3();
+  public static multivar.inference.StudentizedIntervalOptions apply(double, double, long);
+  public static multivar.inference.StudentizedIntervalOptions unapply(multivar.inference.StudentizedIntervalOptions);
+}
+
+public abstract class multivar.inference.IntervalQuantileConvention implements scala.Product,scala.reflect.Enum {
+  public multivar.inference.IntervalQuantileConvention();
+  public static multivar.inference.IntervalQuantileConvention fromOrdinal(int);
+  public static multivar.inference.IntervalQuantileConvention valueOf(java.lang.String);
+  public static multivar.inference.IntervalQuantileConvention[] values();
+}
+
+public final class multivar.inference.IntervalQuantileConvention$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.IntervalQuantileConvention);
+  public multivar.inference.IntervalQuantileConvention fromOrdinal(int);
+  public multivar.inference.IntervalQuantileConvention valueOf(java.lang.String);
+  public multivar.inference.IntervalQuantileConvention[] values();
+  public static final multivar.inference.IntervalQuantileConvention Type7;
+}
+
+public final class multivar.inference.StudentizedInterval {
+  public double confidenceLevel();
+  public double lower();
+  public double lowerPivotQuantile();
+  public double upper();
+  public double upperPivotQuantile();
+  public multivar.inference.IntervalQuantileConvention quantileConvention();
+  public multivar.inference.StudentizedInterval(multivar.inference.StudentizedValue, scala.collection.immutable.Vector<java.lang.Object>, double, double, double, double, double);
+  public multivar.inference.StudentizedValue observed();
+  public scala.collection.immutable.Vector<java.lang.Object> replicateIds();
+  public static scala.Function0<java.lang.Object> compute$default$5();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedInterval> compute(multivar.inference.StudentizedValue, scala.collection.immutable.IndexedSeq<java.lang.Object>, scala.collection.Iterator<multivar.inference.StudentizedDraw>, multivar.inference.StudentizedIntervalOptions, scala.Function0<java.lang.Object>);
 }

@@ -168,6 +168,11 @@ subspace statistic. Conditioned designs fail closed at that boundary until the
 caller prepares the required projection and whitening resources through
 `ResidualPermutationAction`.
 
+The executor combines compiled and protocol validity claims explicitly: equal
+claims are retained; `Exact` yields to the other claim; and different
+non-`Exact` claims are refused as `InvalidValidity` before any draw. Enum
+declaration order never defines a statistical ordering.
+
 `ExactRefitReduction` is an optional capability with explicit core, update, and
 lift stages. The first concrete instance factors paired tables once with thin
 SVDs and computes permuted cross-covariance roots in the reduced row-score
@@ -202,3 +207,42 @@ sbt inferenceJS/test
 
 Shared inference code must not import Breeze, dataset, image, Spark, scheduler,
 filesystem, or platform-specific APIs.
+
+## Fixed-budget ordered ladders
+
+Use `FixedLadderExecutionConfig` with `InferenceExecutor.runLadder` or
+`runProgram` to consume exactly `perRung` draws for each attempted rung:
+
+```scala
+val config = FixedLadderExecutionConfig(
+  perRung = MonteCarloDraws(999).toOption.get,
+  totalBudget = MonteCarloDraws(2997).toOption.get,
+  alpha = Alpha(0.05).toOption.get,
+  maxSteps = LadderSteps(3).toOption.get,
+  seed = Seed.fromLong(1729)
+)
+```
+
+For a compiled program, declare `MonteCarloPolicy.Fixed` with the same per-rung
+draw count. The program supplies the seed, unit policy and design, as with the
+existing sequential execution path. Mismatched execution modes or draw counts
+are refused.
+
+Each fixed rung uses `MonteCarlo.fixed`: ties count as extreme, the p-value is
+`(b+1)/(B+1)`, and its receipt has no adaptive boundary. The ladder stops at the
+first nonrejection using the configured alpha. If the remaining global budget
+cannot fund a complete rung, that rung is unavailable and the ladder reports
+budget exhaustion; it does not silently reduce B. Replicate identity spacing
+uses the original per-rung capacity throughout the run.
+
+Existing `LadderExecutionConfig` retains adaptive within-rung execution.
+The two configurations share the ordered ladder, design validation, accounting,
+feature removal and result formation. This execution behavior does not by
+itself establish statistical validity for a protocol or exchangeability design.
+
+## Complete-profile bootstrap
+
+[Bootstrap means of complete matrix profiles](BOOTSTRAP.md) describes exact
+reduced-coordinate refits, lazy loading/readout recovery, full coordinate
+covariance moments, cancellation and resource bounds. Scientific contrasts and
+sampling-unit identities remain caller declarations.

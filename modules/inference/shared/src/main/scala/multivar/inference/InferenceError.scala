@@ -4,6 +4,7 @@ import resample4s.spi.DesignError
 
 enum ExecutionPolicyMismatch:
   case FixedMonteCarloUnsupported
+  case MonteCarloMode
   case PerRungDraws
   case Alpha
   case BatchSize
@@ -106,6 +107,8 @@ enum InferenceError:
         s"compiled null '${compiled.value}' does not match protocol null '${protocol.value}'"
       case ExecutionPolicyConflict(mismatch) =>
         mismatch match
+          case ExecutionPolicyMismatch.MonteCarloMode =>
+            "compiled Monte Carlo policy differs from the execution configuration mode"
           case ExecutionPolicyMismatch.FixedMonteCarloUnsupported =>
             "the ladder executor currently requires a sequential Monte Carlo policy"
           case ExecutionPolicyMismatch.PerRungDraws =>
