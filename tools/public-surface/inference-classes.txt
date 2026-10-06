@@ -173,3 +173,28 @@ multivar.inference.FeatureNullEvidence
 multivar.inference.FeatureTest
 multivar.inference.FeatureEvidence
 multivar.inference.FeatureEvidenceResult
+
+# Exact complete-profile bootstrap and reduced covariance recovery.
+multivar.inference.ProfileBootstrapCounts
+multivar.inference.ProfileBootstrapMode
+multivar.inference.ProfileBootstrapPath
+multivar.inference.ProfileBootstrapOptions
+multivar.inference.ProfileBootstrapPreparation
+multivar.inference.MeanProfileBootstrapFit
+multivar.inference.ProfileBootstrapProjection
+multivar.inference.MeanProfileBootstrapCore
+multivar.inference.MeanProfileBootstrap
+multivar.inference.ReducedLoadingMoments
+multivar.inference.ReducedMomentSummary
+multivar.inference.ProjectedMomentSummary
+
+# Distinct deletion fits and complete-draw studentized interval arithmetic.
+multivar.inference.MeanProfileFit
+multivar.inference.ProfileDeletionCounts
+multivar.inference.MeanProfileDeletionFit
+multivar.inference.StudentizedValue
+multivar.inference.JackknifeStandardError
+multivar.inference.StudentizedDraw
+multivar.inference.StudentizedIntervalOptions
+multivar.inference.IntervalQuantileConvention
+multivar.inference.StudentizedInterval

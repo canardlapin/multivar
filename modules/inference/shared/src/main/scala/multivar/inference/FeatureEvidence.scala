@@ -97,7 +97,7 @@ object FeatureEvidence:
       raw(feature) = (exceedances + 1.0) / (evidence.nullReplicates.length + 1.0)
       feature += 1
 
-    val adjusted = adjust(raw, multiplicity)
+    val adjusted = Multiplicity.adjustArray(raw, multiplicity)
     val tests = Vector.newBuilder[FeatureTest]
     feature = 0
     while feature < raw.length do
@@ -123,30 +123,3 @@ object FeatureEvidence:
       evidence.validity
     ))
 
-  private def adjust(raw: Array[Double], method: MultiplicityMethod): Array[Double] =
-    method match
-      case MultiplicityMethod.Bonferroni =>
-        raw.map(value => Math.min(1.0, value * raw.length))
-      case MultiplicityMethod.Holm =>
-        val order = raw.indices.sortBy(raw).toVector
-        val out = new Array[Double](raw.length)
-        var running = 0.0
-        var rank = 0
-        while rank < order.length do
-          val index = order(rank)
-          running = Math.max(running, (raw.length - rank).toDouble * raw(index))
-          out(index) = Math.min(1.0, running)
-          rank += 1
-        out
-      case MultiplicityMethod.BenjaminiHochberg =>
-        val order = raw.indices.sortBy(raw).toVector
-        val out = new Array[Double](raw.length)
-        var running = 1.0
-        var rank = order.length - 1
-        while rank >= 0 do
-          val index = order(rank)
-          val candidate = raw(index) * raw.length.toDouble / (rank + 1.0)
-          running = Math.min(running, candidate)
-          out(index) = Math.min(1.0, running)
-          rank -= 1
-        out

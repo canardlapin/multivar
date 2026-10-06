@@ -159,3 +159,13 @@ class StabilitySuite extends munit.FunSuite:
         assertEqualsDouble(summary.meanAngle, 0.2, 1e-12)
       case other => fail(s"expected computed subspace stability, got $other")
   }
+
+  test("vector moments refuse finite-input overflow without corrupting the prior state") {
+    val key = StabilityKey(accepted(UnitId("overflow")), SpaceId.unsafe("readout"), StabilityChannel.Scores)
+    val zero = accepted(VectorStabilityReducer.empty(key, 1))
+    val first = accepted(zero.add(InferenceNumerics.vectorFromSeq(Vector(Double.MaxValue)), false, false))
+    assert(first.add(InferenceNumerics.vectorFromSeq(Vector(-Double.MaxValue)), false, false).isLeft)
+    first.result match
+      case Evidence.Computed(value) => assertEquals(value.mean(0), Double.MaxValue)
+      case other => fail(other.toString)
+  }

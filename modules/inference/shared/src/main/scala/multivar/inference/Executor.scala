@@ -53,6 +53,16 @@ final case class LadderExecutionConfig(
     boundary: SequentialBoundary = SequentialBoundary.FromAlpha
 )
 
+/** Fixed draws within each rung; ordered stopping still occurs between rungs. */
+final case class FixedLadderExecutionConfig(
+    perRung: MonteCarloDraws,
+    totalBudget: MonteCarloDraws,
+    alpha: Alpha,
+    maxSteps: LadderSteps,
+    seed: Seed,
+    unitPolicy: UnitPolicy = UnitPolicy.SingleAxes
+)
+
 final case class ExactLadderRun[S, K <: TargetKind](
     target: TargetSpec[K],
     roots: Vector[Double],
@@ -63,10 +73,46 @@ final case class ExactLadderRun[S, K <: TargetKind](
 )
 
 object InferenceExecutor:
+  private enum RungMode:
+    case Fixed
+    case Sequential(batchSize: BatchSize, boundary: SequentialBoundary)
+
+  private final case class RuntimeConfig(
+      perRung: MonteCarloDraws,
+      totalBudget: MonteCarloDraws,
+      alpha: Alpha,
+      maxSteps: LadderSteps,
+      seed: Seed,
+      unitPolicy: UnitPolicy,
+      mode: RungMode
+  )
+
+  private def runtime(config: LadderExecutionConfig): RuntimeConfig =
+    RuntimeConfig(config.perRung, config.totalBudget, config.alpha, config.maxSteps,
+      config.seed, config.unitPolicy, RungMode.Sequential(config.batchSize, config.boundary))
+
+  private def runtime(config: FixedLadderExecutionConfig): RuntimeConfig =
+    RuntimeConfig(config.perRung, config.totalBudget, config.alpha, config.maxSteps,
+      config.seed, config.unitPolicy, RungMode.Fixed)
+
   def runLadder[S, F, K <: TargetKind, N <: NullKind](
       initial: S,
       protocol: ExactLadderProtocol[S, F, K, N],
       config: LadderExecutionConfig
+  ): Either[InferenceError, ExactLadderRun[S, K]] =
+    runLadderConfig(initial, protocol, runtime(config))
+
+  def runLadder[S, F, K <: TargetKind, N <: NullKind](
+      initial: S,
+      protocol: ExactLadderProtocol[S, F, K, N],
+      config: FixedLadderExecutionConfig
+  ): Either[InferenceError, ExactLadderRun[S, K]] =
+    runLadderConfig(initial, protocol, runtime(config))
+
+  private def runLadderConfig[S, F, K <: TargetKind, N <: NullKind](
+      initial: S,
+      protocol: ExactLadderProtocol[S, F, K, N],
+      config: RuntimeConfig
   ): Either[InferenceError, ExactLadderRun[S, K]] =
     protocol.roots(initial).flatMap { roots =>
       val limit = Math.min(config.maxSteps.value, roots.length)
@@ -84,7 +130,23 @@ object InferenceExecutor:
           )
     }
 
-  def runProgram[
+  def runProgram[F, S, K <: TargetKind, N <: NullKind, D <: DesignKind](
+      initial: S,
+      program: InferenceProgram[F, K, N, D],
+      protocol: ExactLadderProtocol[S, F, K, N],
+      config: LadderExecutionConfig
+  ): Either[InferenceError, ExactLadderRun[S, K]] =
+    runProgramConfig(initial, program, protocol, runtime(config))
+
+  def runProgram[F, S, K <: TargetKind, N <: NullKind, D <: DesignKind](
+      initial: S,
+      program: InferenceProgram[F, K, N, D],
+      protocol: ExactLadderProtocol[S, F, K, N],
+      config: FixedLadderExecutionConfig
+  ): Either[InferenceError, ExactLadderRun[S, K]] =
+    runProgramConfig(initial, program, protocol, runtime(config))
+
+  private def runProgramConfig[
       F,
       S,
       K <: TargetKind,
@@ -94,7 +156,7 @@ object InferenceExecutor:
       initial: S,
       program: InferenceProgram[F, K, N, D],
       protocol: ExactLadderProtocol[S, F, K, N],
-      config: LadderExecutionConfig
+      config: RuntimeConfig
   ): Either[InferenceError, ExactLadderRun[S, K]] =
     for
       _ <-
@@ -153,31 +215,21 @@ object InferenceExecutor:
 
   private def validateMonteCarlo(
       policy: MonteCarloPolicy,
-      config: LadderExecutionConfig
+      config: RuntimeConfig
   ): Either[InferenceError, Unit] =
-    policy match
-      case MonteCarloPolicy.Fixed(_) =>
-        Left(InferenceError.ExecutionPolicyConflict(
-          ExecutionPolicyMismatch.FixedMonteCarloUnsupported
-        ))
-      case MonteCarloPolicy.Sequential(maxDraws, alpha, batchSize, boundary) =>
-        if maxDraws != config.perRung then
-          Left(InferenceError.ExecutionPolicyConflict(
-            ExecutionPolicyMismatch.PerRungDraws
-          ))
-        else if alpha != config.alpha then
-          Left(InferenceError.ExecutionPolicyConflict(
-            ExecutionPolicyMismatch.Alpha
-          ))
-        else if batchSize != config.batchSize then
-          Left(InferenceError.ExecutionPolicyConflict(
-            ExecutionPolicyMismatch.BatchSize
-          ))
-        else if boundary != config.boundary then
-          Left(InferenceError.ExecutionPolicyConflict(
-            ExecutionPolicyMismatch.SequentialBoundary
-          ))
+    def mismatch(reason: ExecutionPolicyMismatch): Either[InferenceError, Unit] =
+      Left(InferenceError.ExecutionPolicyConflict(reason))
+    (policy, config.mode) match
+      case (MonteCarloPolicy.Fixed(draws), RungMode.Fixed) =>
+        if draws != config.perRung then mismatch(ExecutionPolicyMismatch.PerRungDraws)
         else Right(())
+      case (MonteCarloPolicy.Sequential(draws, alpha, batchSize, boundary), RungMode.Sequential(actualBatch, actualBoundary)) =>
+        if draws != config.perRung then mismatch(ExecutionPolicyMismatch.PerRungDraws)
+        else if alpha != config.alpha then mismatch(ExecutionPolicyMismatch.Alpha)
+        else if batchSize != actualBatch then mismatch(ExecutionPolicyMismatch.BatchSize)
+        else if boundary != actualBoundary then mismatch(ExecutionPolicyMismatch.SequentialBoundary)
+        else Right(())
+      case _ => mismatch(ExecutionPolicyMismatch.MonteCarloMode)
 
   private def execute[S, F, K <: TargetKind, N <: NullKind](
       initial: S,
@@ -185,7 +237,7 @@ object InferenceExecutor:
       roots: Vector[Double],
       limit: Int,
       design: Option[ResamplingDesign[?]],
-      config: LadderExecutionConfig,
+      config: RuntimeConfig,
       validity: ValidityClaim
   ): Either[InferenceError, ExactLadderRun[S, K]] =
     var state = initial
@@ -200,10 +252,15 @@ object InferenceExecutor:
       val component = acceptedComponent(index)
       val unit = LatentUnit.Axis(UnitId.unsafe(s"u${index + 1}"), component)
       val observed = protocol.observed(state) match
-        case Right(value) => value
-        case Left(error)  => return Left(error)
+        case Right(value) if value.isFinite => value
+        case Right(value) => return Left(InferenceError.NonFiniteStatistic("observed statistic", value))
+        case Left(error) => return Left(error)
 
-      budget.checkout(config.perRung) match
+      val grantResult = config.mode match
+        case RungMode.Fixed if budget.remaining < config.perRung.value =>
+          Left(InferenceError.BudgetExhausted(budget.used, config.totalBudget.value))
+        case _ => budget.checkout(config.perRung)
+      grantResult match
         case Left(_: InferenceError.BudgetExhausted) =>
           steps += LadderStepResult(
             unit,
@@ -217,74 +274,52 @@ object InferenceExecutor:
           val assignments = ReplicatePlan.forStep(component, config.perRung, grant.allocated) match
             case Right(value) => value
             case Left(error)  => return Left(error)
-          var accumulator = MonteCarlo.sequentialAccumulator(
-            observed,
-            protocol.target.alternative,
-            grant.allocated,
-            config.alpha,
-            config.batchSize,
-            config.boundary,
-            ReplicateProvenance.Deterministic(
-              config.seed,
-              protocol.randomizationAlgorithm,
-              Seed.derivationAlgorithm
-            )
-          ) match
+          val provenance = ReplicateProvenance.Deterministic(
+            config.seed, protocol.randomizationAlgorithm, Seed.derivationAlgorithm)
+          def evaluate(assignment: ReplicateAssignment): Either[InferenceError, ReplicateStatistic] =
+            val result = for
+              action <- design match
+                case Some(value) => protocol.actionForDesign(state, value, assignment.replicate, config.seed)
+                case None => protocol.action(state, assignment.replicate, config.seed)
+              value <- protocol.nullStatistic(state, component, assignment.replicate, action)
+              statistic <- ReplicateStatistic.from(assignment.replicate, value)
+            yield statistic
+            result.left.map(error => InferenceError.ReplicateFailure(assignment.replicate, error))
+
+          val receiptResult = config.mode match
+            case RungMode.Fixed =>
+              val statistics = Vector.newBuilder[ReplicateStatistic]
+              var draw = 0
+              while draw < assignments.size do
+                evaluate(assignments(draw)) match
+                  case Left(error) => return Left(error)
+                  case Right(value) => statistics += value
+                draw += 1
+              MonteCarlo.fixed(observed, protocol.target.alternative, statistics.result(), provenance)
+            case RungMode.Sequential(batchSize, boundary) =>
+              var accumulator = MonteCarlo.sequentialAccumulator(
+                observed, protocol.target.alternative, grant.allocated,
+                config.alpha, batchSize, boundary, provenance
+              ) match
+                case Right(value) => value
+                case Left(error) => return Left(error)
+              while !accumulator.complete do
+                val thisBatch = Math.min(batchSize.value, grant.allocated.value - accumulator.consumed)
+                val statistics = Vector.newBuilder[ReplicateStatistic]
+                var draw = accumulator.consumed
+                val end = draw + thisBatch
+                while draw < end do
+                  evaluate(assignments(draw)) match
+                    case Left(error) => return Left(error)
+                    case Right(value) => statistics += value
+                  draw += 1
+                accumulator.offer(statistics.result()) match
+                  case Right(value) => accumulator = value
+                  case Left(error) => return Left(error)
+              accumulator.result
+          val receipt = receiptResult match
             case Right(value) => value
-            case Left(error)  => return Left(error)
-          while !accumulator.complete do
-            val thisBatch = Math.min(
-              config.batchSize.value,
-              grant.allocated.value - accumulator.consumed
-            )
-            val statistics = Vector.newBuilder[ReplicateStatistic]
-            var draw = accumulator.consumed
-            val end = draw + thisBatch
-            while draw < end do
-              val assignment = assignments(draw)
-              val statistic =
-                for
-                  action <- design match
-                    case Some(value) =>
-                      protocol.actionForDesign(
-                        state,
-                        value,
-                        assignment.replicate,
-                        config.seed
-                      )
-                    case None =>
-                      protocol.action(
-                        state,
-                        assignment.replicate,
-                        config.seed
-                      )
-                  value <- protocol.nullStatistic(
-                    state,
-                    component,
-                    assignment.replicate,
-                    action
-                  )
-                  statistic <- ReplicateStatistic.from(
-                    assignment.replicate,
-                    value
-                  )
-                yield statistic
-              statistic match
-                case Left(error) =>
-                  return Left(
-                    InferenceError.ReplicateFailure(
-                      assignment.replicate,
-                      error
-                    )
-                  )
-                case Right(value) => statistics += value
-              draw += 1
-            accumulator.offer(statistics.result()) match
-              case Right(value) => accumulator = value
-              case Left(error)  => return Left(error)
-          val receipt = accumulator.result match
-            case Right(value) => value
-            case Left(error)  => return Left(error)
+            case Left(error) => return Left(error)
 
           budget.record(grant, receipt.consumed.value) match
             case Right(value) => budget = value
