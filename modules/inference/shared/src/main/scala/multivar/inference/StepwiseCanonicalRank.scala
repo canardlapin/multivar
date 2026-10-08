@@ -4,13 +4,13 @@ import gale.backend.Backend.given
 import gale.linalg.{DMat, QROptions, QRPivoting}
 import gale.spectral.SpectralBackend.given
 import gale.spectral.SpectralDiagnostics
-import multivar.core.{ComponentCount, MatrixOps, MatrixView, PreprocessSpec}
+import multivar.core.{ComponentCount, MatrixView, PreprocessSpec}
 import multivar.family.paired.{Cca, CcaFit}
 import resample4s.kernel.{Permutation, Seed}
 
 /** A compact, full-rank classical CCA problem in already prepared coordinates.
   * Lower observed modes are removed before each randomized higher-rank fit.
-  * Complements of the coefficient matrices preserve unequal candidate spaces.
+  * Orthonormal score complements preserve unequal candidate spaces and affine invariance.
   * This numerical procedure does not itself qualify a scientific error law. */
 final class StepwiseCanonicalRank private (
     val leftVariables: DMat, val rightVariables: DMat,
@@ -19,13 +19,24 @@ final class StepwiseCanonicalRank private (
     private val stepBases: Vector[(DMat, DMat)]
 ):
   def candidateRank: Int = correlations.size
-  val qrRankTolerance: Double = StepwiseCanonicalRank.qrRankTolerance
+  val qrRankTolerance: Double = CanonicalRankSpectrum.qrRankTolerance
+  val method: CanonicalRankMethod = CanonicalRankMethod.ScoreOrthogonalPermutationV2
+  val rootSeparationTolerance: Double = StepwiseCanonicalRank.rootSeparationTolerance
+
+  private[inference] def validateTailCuts: Either[InferenceError, Unit] =
+    var step = 1
+    while step < candidateRank do
+      if correlations(step - 1) - correlations(step) <= rootSeparationTolerance then
+        return Left(InferenceError.UnidentifiedCanonicalTail(step, correlations(step - 1), correlations(step), rootSeparationTolerance))
+      step += 1
+    Right(())
 
   def nullStatistics(permutation: Permutation): Either[InferenceError, Vector[Double]] =
     nullStatisticsWithDiagnostics(permutation).map(_.map(_._1))
 
   private[inference] def nullStatisticsWithDiagnostics(permutation: Permutation): Either[InferenceError, Vector[(Double, SpectralDiagnostics)]] =
     if permutation.domain != leftVariables.rows then Left(InferenceError.RowCountMismatch("canonical residual action", leftVariables.rows, permutation.domain))
+    else if validateTailCuts.isLeft then Left(validateTailCuts.left.toOption.get)
     else
       val rows = permutation.toIArray
       val output = Vector.newBuilder[(Double, SpectralDiagnostics)]
@@ -39,7 +50,8 @@ final class StepwiseCanonicalRank private (
       Right(output.result())
 
 object StepwiseCanonicalRank:
-  val qrRankTolerance: Double = 1e-12
+  val qrRankTolerance: Double = CanonicalRankSpectrum.qrRankTolerance
+  val rootSeparationTolerance: Double = 1e-10
   def from(left: DMat, right: DMat, maximumElements: Long = 4_000_000L): Either[InferenceError, StepwiseCanonicalRank] =
     val n = BigInt(left.rows); val p = BigInt(left.cols); val q = BigInt(right.cols)
     val k = p.min(q)
@@ -50,19 +62,12 @@ object StepwiseCanonicalRank:
     else if maximumElements < 0L || required > maximumElements || Vector(n * p, n * q, p * p, q * q).exists(_ > Int.MaxValue) then Left(InferenceError.UnsupportedProblem(s"stepwise CCA requires $required owned elements, allowed $maximumElements"))
     else
       for
-        _ <- finite("left canonical input", left)
-        _ <- finite("right canonical input", right)
-        _ <- fullRank(left)
-        _ <- fullRank(right)
-        canonical <- completeClassical(left, right)
-        (roots, leftWeights, rightWeights, observedDiagnostics) = canonical
-        _ <- wilks(roots).map(_ => ())
-        leftCoefficients <- complete(leftWeights)
-        rightCoefficients <- complete(rightWeights)
-        u = left * leftCoefficients
-        v = right * rightCoefficients
-        _ <- finite("complete left canonical variables", u)
-        _ <- finite("complete right canonical variables", v)
+        prepared <- CanonicalRankSpectrum.prepare(left, right, maximumElements)
+        roots = prepared.spectrum.correlations
+        leftDirections <- complete(prepared.leftDirections)
+        rightDirections <- complete(prepared.rightDirections)
+        u = prepared.leftBasis * leftDirections
+        v = prepared.rightBasis * rightDirections
         bases <-
           val out = Vector.newBuilder[(DMat, DMat)]
           var step = 0
@@ -71,8 +76,8 @@ object StepwiseCanonicalRank:
             val x = DMat.tabulate(u.rows, u.cols - step)((i, j) => u(i, j + step))
             val y = DMat.tabulate(v.rows, v.cols - step)((i, j) => v(i, j + step))
             (for
-              leftBasis <- orthonormal(x)
-              rightBasis <- orthonormal(y)
+              leftBasis <- CanonicalRankSpectrum.orthonormal(x)
+              rightBasis <- CanonicalRankSpectrum.orthonormal(y)
             yield (leftBasis, rightBasis)) match
               case Left(error) => failure = Some(error)
               case Right(value) => out += value
@@ -80,15 +85,16 @@ object StepwiseCanonicalRank:
           failure.toLeft(out.result())
         observed <-
           val out = Vector.newBuilder[Double]
-          var index = 0
+          var step = 0
           var failure = Option.empty[InferenceError]
-          while index < bases.size && failure.isEmpty do
-            crossWilks(bases(index)._1, bases(index)._2, identity) match
+          while step < bases.size && failure.isEmpty do
+            crossWilks(bases(step)._1, bases(step)._2, identity) match
               case Left(error) => failure = Some(error)
               case Right(value) => out += value
-            index += 1
+            step += 1
           failure.toLeft(out.result())
-      yield new StepwiseCanonicalRank(u, v, roots, observed, required.toLong, observedDiagnostics, bases)
+      yield new StepwiseCanonicalRank(u, v, roots, observed, required.toLong,
+        prepared.spectrum.observedCanonicalDiagnostics, bases)
 
   /** A row permutation is orthogonal, so each side's Gram matrix is unchanged.
     * CCA on permuted tail variables is therefore exactly the converged SVD of
@@ -108,32 +114,6 @@ object StepwiseCanonicalRank:
       total
     cross.svd.flatMap(_.requireConverged).left.map(error => InferenceError.NumericalFailure("stepwise compact CCA SVD", error.toString)).flatMap(result => wilks(result.singularValues.toVector).map(value => (value, result.diagnostics)))
 
-  private def orthonormal(input: DMat): Either[InferenceError, DMat] =
-    val qr = input.qr(QROptions(pivoting = QRPivoting.Column, rankTolerance = Some(qrRankTolerance)))
-    val rank = qr.diagnostics.rank.getOrElse(0)
-    if rank != input.cols then Left(InferenceError.RankLoss(input.cols, rank))
-    else
-      val selectors = DMat.tabulate(input.rows, input.cols)((i, j) => if i == j then 1.0 else 0.0)
-      qr.applyQ(selectors).left.map(error => InferenceError.NumericalFailure("stepwise canonical QR basis", error.toString))
-
-  /** The fitted latent-model CCA surface truncates numerical zero roots.
-    * Confirmation must retain all K hypotheses, including zero roots. The
-    * full thin Gale SVD supplies their coordinate vectors without a local
-    * eigensolver or covariance inverse. */
-  private def completeClassical(left: DMat, right: DMat): Either[InferenceError, (Vector[Double], DMat, DMat, SpectralDiagnostics)] =
-    val leftQr = left.qr(QROptions(QRPivoting.Column, Some(qrRankTolerance)))
-    val rightQr = right.qr(QROptions(QRPivoting.Column, Some(qrRankTolerance)))
-    def numerical[A](role: String, value: Either[gale.linalg.LinAlgError, A]): Either[InferenceError, A] =
-      value.left.map(error => InferenceError.NumericalFailure(role, error.toString))
-    for
-      leftBasis <- numerical("observed left canonical basis", leftQr.applyQ(DMat.tabulate(left.rows, left.cols)((i, j) => if i == j then 1.0 else 0.0)))
-      rightBasis <- numerical("observed right canonical basis", rightQr.applyQ(DMat.tabulate(right.rows, right.cols)((i, j) => if i == j then 1.0 else 0.0)))
-      spectral <- numerical("complete observed canonical SVD", (leftBasis.t * rightBasis).svd.flatMap(_.requireConverged))
-      _ <- if spectral.singularValues.length == math.min(left.cols, right.cols) then Right(()) else Left(InferenceError.InvalidSpectrum("complete observed CCA omitted candidate roots"))
-      leftWeights <- numerical("observed left canonical weights", leftQr.solveLeastSquares(leftBasis * spectral.u))
-      rightWeights <- numerical("observed right canonical weights", rightQr.solveLeastSquares(rightBasis * spectral.vt.t))
-    yield (spectral.singularValues.toVector, leftWeights, rightWeights, spectral.diagnostics)
-
   private[inference] def classical(left: DMat, right: DMat): Either[InferenceError, CcaFit] =
     for
       count <- ComponentCount(math.min(left.cols, right.cols)).left.map(error => InferenceError.NumericalFailure("classical CCA count", error.message))
@@ -150,40 +130,20 @@ object StepwiseCanonicalRank:
       else
         val count = coefficients.rows - coefficients.cols
         val selectors = DMat.tabulate(coefficients.rows, count)((i, j) => if i == j + coefficients.cols then 1.0 else 0.0)
-        qr.applyQ(selectors).left.map(error => InferenceError.NumericalFailure("canonical coefficient complement", error.toString)).map: complement =>
+        qr.applyQ(selectors).left.map(error => InferenceError.NumericalFailure("canonical whitened score complement", error.toString)).map: complement =>
           DMat.tabulate(coefficients.rows, coefficients.rows)((i, j) => if j < coefficients.cols then coefficients(i, j) else complement(i, j - coefficients.cols))
 
   private[inference] def wilks(values: Vector[Double]): Either[InferenceError, Double] =
-    if values.isEmpty || values.exists(x => !x.isFinite || x < 0.0 || x >= 1.0 || 1.0 - x * x <= 1e-12) then Left(InferenceError.InvalidSpectrum("classical canonical correlations require finite [0,1) values with 1-rho^2 > 1e-12; unit or numerically unit correlations are unavailable"))
-    else
-      val result = -values.map(x => math.log1p(-x * x)).sum
-      if result.isFinite then Right(result) else Left(InferenceError.NonFiniteStatistic("stepwise Wilks", result))
-
-  private def finite(role: String, input: DMat): Either[InferenceError, Unit] =
-    MatrixOps.checkFinite(role, input).left.map(error => InferenceError.NumericalFailure(role, error.message))
-
-  private def fullRank(input: DMat): Either[InferenceError, Unit] =
-    val rank = input.qr(QROptions(pivoting = QRPivoting.Column, rankTolerance = Some(qrRankTolerance))).diagnostics.rank.getOrElse(0)
-    if rank == input.cols then Right(()) else Left(InferenceError.RankLoss(input.cols, rank))
+    CanonicalRankSpectrum.wilks(values)
 
 enum CanonicalRankRefitMethod:
-  case ExactPermutedTailQrCrossSvd
+  case ScoreOrthogonalPermutedTailQrCrossSvdV2
 
 enum CanonicalRankSampling:
   case WithReplacement
   /** Unrestricted finite-group sampling, without evaluating rejected draws. */
   case DistinctNonIdentity(maximumCandidates: Int)
 
-final class FixedCanonicalRankResult private[inference] (
-    val correlations: Vector[Double], val receipts: Vector[MonteCarloReceipt],
-    val adjustedPValues: Vector[PValue], val detectableRank: Int,
-    val refitMethod: CanonicalRankRefitMethod, val completedCompactFits: Long, val identityDraws: Int,
-    val sampling: CanonicalRankSampling, val action: PermutationAction,
-    val candidateDraws: Int, val duplicateDraws: Int, val sampledCandidateIds: Vector[ReplicateId],
-    val observedCanonicalDiagnostics: SpectralDiagnostics, val qrRankTolerance: Double,
-    val maximumNullSvdResidual: Double, val maximumNullOrthogonalityError: Double,
-    val allNullFitsExtremeCertified: Boolean
-)
 
 object FixedCanonicalRank:
   private val distinctAlgorithm: resample4s.spi.AlgorithmId =
@@ -223,6 +183,7 @@ object FixedCanonicalRank:
     else if candidateLimit < draws.value then Left(InferenceError.CanonicalDrawBudgetExhausted(0, 0, draws.value))
     else if !enoughTransforms then Left(InferenceError.UnsupportedProblem("distinct non-identity sampling requires an unrestricted group containing at least B+1 transformations"))
     else if maximumTransformElements < 0L || transformElements > maximumTransformElements || transformElements > Int.MaxValue then Left(InferenceError.UnsupportedProblem(s"distinct transform keys require $transformElements retained row indices, allowed $maximumTransformElements; collection overhead is separate"))
+    else if problem.validateTailCuts.isLeft then Left(problem.validateTailCuts.left.toOption.get)
     else
       val values = Array.fill(problem.candidateRank)(Vector.newBuilder[ReplicateStatistic])
       val sampledIds = Vector.newBuilder[ReplicateId]
@@ -283,6 +244,6 @@ object FixedCanonicalRank:
             if detectable == step && maximum <= alpha.value then detectable += 1
         step += 1
       Right(new FixedCanonicalRankResult(problem.correlations, receipts.result(), adjusted.result(), detectable,
-        CanonicalRankRefitMethod.ExactPermutedTailQrCrossSvd, draws.value.toLong * problem.candidateRank, identityDraws,
+        CanonicalRankRefitMethod.ScoreOrthogonalPermutedTailQrCrossSvdV2, draws.value.toLong * problem.candidateRank, identityDraws,
         sampling, action, candidates, duplicates, sampledIds.result(), problem.observedCanonicalDiagnostics, problem.qrRankTolerance,
         maximumResidual, maximumOrthogonalityError, allExtremeCertified))

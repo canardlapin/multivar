@@ -62,6 +62,7 @@ public final class multivar.inference.InferenceError$ implements scala.deriving.
   public static final multivar.inference.InferenceError$Resampling$ Resampling;
   public static final multivar.inference.InferenceError$RowCountMismatch$ RowCountMismatch;
   public static final multivar.inference.InferenceError$TargetProtocolMismatch$ TargetProtocolMismatch;
+  public static final multivar.inference.InferenceError$UnidentifiedCanonicalTail$ UnidentifiedCanonicalTail;
   public static final multivar.inference.InferenceError$UnitBeyondRank$ UnitBeyondRank;
   public static final multivar.inference.InferenceError$UnorderedComponents$ UnorderedComponents;
   public static final multivar.inference.InferenceError$UnsupportedEvidence$ UnsupportedEvidence;
@@ -973,16 +974,19 @@ public final class multivar.inference.CanonicalResidualBasis {
 
 public final class multivar.inference.StepwiseCanonicalRank {
   public double qrRankTolerance();
+  public double rootSeparationTolerance();
   public gale.linalg.DMat leftVariables();
   public gale.linalg.DMat rightVariables();
   public gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
   public int candidateRank();
   public long plannedElements();
+  public multivar.inference.CanonicalRankMethod method();
   public multivar.inference.StepwiseCanonicalRank(gale.linalg.DMat, gale.linalg.DMat, scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<java.lang.Object>, long, gale.spectral.SpectralDiagnostics, scala.collection.immutable.Vector<scala.Tuple2<gale.linalg.DMat, gale.linalg.DMat>>);
   public scala.collection.immutable.Vector<java.lang.Object> correlations();
   public scala.collection.immutable.Vector<java.lang.Object> observedWilks();
   public scala.util.Either<multivar.inference.InferenceError, scala.collection.immutable.Vector<java.lang.Object>> nullStatistics(resample4s.core.Permutation);
   public scala.util.Either<multivar.inference.InferenceError, scala.collection.immutable.Vector<scala.Tuple2<java.lang.Object, gale.spectral.SpectralDiagnostics>>> nullStatisticsWithDiagnostics(resample4s.core.Permutation);
+  public scala.util.Either<multivar.inference.InferenceError, scala.runtime.BoxedUnit> validateTailCuts();
   public static long from$default$3();
   public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> crossWilks(gale.linalg.DMat, gale.linalg.DMat, scala.Function1<java.lang.Object, java.lang.Object>);
   public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> wilks(scala.collection.immutable.Vector<java.lang.Object>);
@@ -1004,7 +1008,7 @@ public final class multivar.inference.CanonicalRankRefitMethod$ implements scala
   public multivar.inference.CanonicalRankRefitMethod fromOrdinal(int);
   public multivar.inference.CanonicalRankRefitMethod valueOf(java.lang.String);
   public multivar.inference.CanonicalRankRefitMethod[] values();
-  public static final multivar.inference.CanonicalRankRefitMethod ExactPermutedTailQrCrossSvd;
+  public static final multivar.inference.CanonicalRankRefitMethod ScoreOrthogonalPermutedTailQrCrossSvdV2;
 }
 
 public abstract class multivar.inference.CanonicalRankSampling implements scala.Product,scala.reflect.Enum {
@@ -1027,7 +1031,7 @@ public final class multivar.inference.FixedCanonicalRank {
   public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.FixedCanonicalRankResult> run(multivar.inference.StepwiseCanonicalRank, multivar.inference.PermutationAction, long, int, double, long, multivar.inference.CanonicalRankSampling, long);
 }
 
-public final class multivar.inference.FixedCanonicalRankResult {
+public final class multivar.inference.FixedCanonicalRankResult implements multivar.inference.CanonicalRankResult {
   public boolean allNullFitsExtremeCertified();
   public double maximumNullOrthogonalityError();
   public double maximumNullSvdResidual();
@@ -1038,6 +1042,7 @@ public final class multivar.inference.FixedCanonicalRankResult {
   public int duplicateDraws();
   public int identityDraws();
   public long completedCompactFits();
+  public multivar.inference.CanonicalRankMethod method();
   public multivar.inference.CanonicalRankRefitMethod refitMethod();
   public multivar.inference.CanonicalRankSampling sampling();
   public multivar.inference.FixedCanonicalRankResult(scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt>, scala.collection.immutable.Vector<java.lang.Object>, int, multivar.inference.CanonicalRankRefitMethod, long, int, multivar.inference.CanonicalRankSampling, multivar.inference.PermutationAction, int, int, scala.collection.immutable.Vector<java.lang.Object>, gale.spectral.SpectralDiagnostics, double, double, double, boolean);
@@ -2206,4 +2211,91 @@ public final class multivar.inference.StudentizedInterval {
   public scala.collection.immutable.Vector<java.lang.Object> replicateIds();
   public static scala.Function0<java.lang.Object> compute$default$5();
   public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.StudentizedInterval> compute(multivar.inference.StudentizedValue, scala.collection.immutable.IndexedSeq<java.lang.Object>, scala.collection.Iterator<multivar.inference.StudentizedDraw>, multivar.inference.StudentizedIntervalOptions, scala.Function0<java.lang.Object>);
+}
+
+public abstract class multivar.inference.CanonicalRankMethod implements scala.Product,scala.reflect.Enum {
+  public java.lang.String identity();
+  public multivar.inference.CanonicalRankMethod();
+  public static multivar.inference.CanonicalRankMethod fromOrdinal(int);
+  public static multivar.inference.CanonicalRankMethod valueOf(java.lang.String);
+  public static multivar.inference.CanonicalRankMethod[] values();
+}
+
+public final class multivar.inference.CanonicalRankMethod$ implements scala.deriving.Mirror$Sum,java.io.Serializable {
+  public int ordinal(java.lang.Object);
+  public int ordinal(multivar.inference.CanonicalRankMethod);
+  public multivar.inference.CanonicalRankMethod fromOrdinal(int);
+  public multivar.inference.CanonicalRankMethod valueOf(java.lang.String);
+  public multivar.inference.CanonicalRankMethod[] values();
+  public static final multivar.inference.CanonicalRankMethod GaussianInterlacingWilksV1;
+  public static final multivar.inference.CanonicalRankMethod ScoreOrthogonalPermutationV2;
+}
+
+public interface multivar.inference.CanonicalRankResult {
+  public abstract double qrRankTolerance();
+  public abstract gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
+  public abstract int detectableRank();
+  public abstract long completedCompactFits();
+  public abstract multivar.inference.CanonicalRankMethod method();
+  public abstract scala.collection.immutable.Vector<java.lang.Object> adjustedPValues();
+  public abstract scala.collection.immutable.Vector<java.lang.Object> correlations();
+  public abstract scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt> receipts();
+}
+
+public final class multivar.inference.CanonicalRankSpectrum {
+  public double qrRankTolerance();
+  public gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
+  public int candidateRank();
+  public int leftColumns();
+  public int rightColumns();
+  public int rows();
+  public long plannedElements();
+  public multivar.inference.CanonicalRankSpectrum(int, int, int, scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<java.lang.Object>, gale.spectral.SpectralDiagnostics, long);
+  public scala.collection.immutable.Vector<java.lang.Object> correlations();
+  public scala.collection.immutable.Vector<java.lang.Object> observedWilks();
+  public static long from$default$3();
+  public static scala.util.Either<multivar.inference.InferenceError, gale.linalg.DMat> orthonormal(gale.linalg.DMat);
+  public static scala.util.Either<multivar.inference.InferenceError, java.lang.Object> wilks(scala.collection.immutable.Vector<java.lang.Object>);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.CanonicalRankSpectrum> from(gale.linalg.DMat, gale.linalg.DMat, long);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.PreparedCanonicalRank> prepare(gale.linalg.DMat, gale.linalg.DMat, long);
+}
+
+public final class multivar.inference.GaussianCanonicalReference {
+  public int largerColumns();
+  public int nullRank();
+  public int rows();
+  public int smallerColumns();
+  public long draw$default$3();
+  public multivar.inference.GaussianCanonicalReference(int, int, int, int);
+  public scala.util.Either<multivar.inference.InferenceError, multivar.inference.CanonicalRankSpectrum> draw(long, int, long);
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.GaussianCanonicalReference> forHypothesis(multivar.inference.CanonicalRankSpectrum, int);
+}
+
+public final class multivar.inference.GaussianCanonicalRank {
+  public static gale.linalg.DMat gaussian(int, int, long);
+  public static java.lang.String referenceAlgorithm();
+  public static long child(long, resample4s.core.StreamDomain, int);
+  public static long hypothesisSeed(long, int);
+  public static long run$default$5();
+  public static long run$default$6();
+  public static resample4s.core.StreamDomain blockDomain();
+  public static resample4s.core.StreamDomain replicateDomain();
+  public static scala.util.Either<multivar.inference.InferenceError, multivar.inference.GaussianCanonicalRankResult> run(multivar.inference.CanonicalRankSpectrum, long, int, double, long, long);
+}
+
+public final class multivar.inference.GaussianCanonicalRankResult implements multivar.inference.CanonicalRankResult {
+  public double maximumNullOrthogonalityError();
+  public double maximumNullSvdResidual();
+  public double qrRankTolerance();
+  public gale.spectral.SpectralDiagnostics observedCanonicalDiagnostics();
+  public int detectableRank();
+  public long completedCompactFits();
+  public long plannedElements();
+  public multivar.inference.CanonicalRankMethod method();
+  public multivar.inference.GaussianCanonicalRankResult(scala.collection.immutable.Vector<java.lang.Object>, scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt>, scala.collection.immutable.Vector<java.lang.Object>, int, scala.collection.immutable.Vector<multivar.inference.GaussianCanonicalReference>, scala.collection.immutable.Vector<java.lang.Object>, long, long, gale.spectral.SpectralDiagnostics, double, double, double);
+  public scala.collection.immutable.Vector<java.lang.Object> adjustedPValues();
+  public scala.collection.immutable.Vector<java.lang.Object> correlations();
+  public scala.collection.immutable.Vector<java.lang.Object> hypothesisSeeds();
+  public scala.collection.immutable.Vector<multivar.inference.GaussianCanonicalReference> references();
+  public scala.collection.immutable.Vector<multivar.inference.MonteCarloReceipt> receipts();
 }
