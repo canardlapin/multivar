@@ -246,3 +246,9 @@ itself establish statistical validity for a protocol or exchangeability design.
 reduced-coordinate refits, lazy loading/readout recovery, full coordinate
 covariance moments, cancellation and resource bounds. Scientific contrasts and
 sampling-unit identities remain caller declarations.
+
+## Canonical rank references
+
+See [canonical rank](CANONICAL-RANK.md) for the score-orthogonal permutation
+comparator, the conservative Gaussian interlacing reference, their distinct
+method identities, assumptions, tie policy and independent fixtures.

@@ -205,3 +205,11 @@ multivar.inference.StudentizedDraw
 multivar.inference.StudentizedIntervalOptions
 multivar.inference.IntervalQuantileConvention
 multivar.inference.StudentizedInterval
+
+# Canonical rank geometry and Gaussian interlacing reference
+multivar.inference.CanonicalRankMethod
+multivar.inference.CanonicalRankResult
+multivar.inference.CanonicalRankSpectrum
+multivar.inference.GaussianCanonicalReference
+multivar.inference.GaussianCanonicalRank
+multivar.inference.GaussianCanonicalRankResult

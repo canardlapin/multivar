@@ -43,9 +43,11 @@ class CanonicalRankSuite extends munit.FunSuite:
       assertEqualsDouble(problem.correlations(0), if rank == 1 then .8 else 0.0, 1e-12)
       assertEqualsDouble(problem.correlations(1), 0.0, 1e-12)
       assertEqualsDouble(problem.observedWilks(1), 0.0, 1e-12)
-      val nulls = right(problem.nullStatistics(permutation(Vector(1,5,10,13,9,6,7,4,11,14,2,3,16,15,12,8).map(_ - 1))))
-      assertEquals(nulls.size, 2)
-      assert(nulls(1) > 0.0)
+      val nulls = problem.nullStatistics(permutation(Vector(1,5,10,13,9,6,7,4,11,14,2,3,16,15,12,8).map(_ - 1)))
+      if rank == 0 then assert(nulls.left.toOption.exists(_.isInstanceOf[InferenceError.UnidentifiedCanonicalTail]))
+      else
+        assertEquals(right(nulls).size, 2)
+        assert(right(nulls)(1) > 0.0)
 
   test("reverse dimension imbalance preserves the independent R null-space fixture"):
     val problem = right(StepwiseCanonicalRank.from(y, x))
@@ -95,7 +97,7 @@ class CanonicalRankSuite extends munit.FunSuite:
     assertEquals(result.detectableRank, 0)
     assertEquals(result.identityDraws, 39)
     assertEquals(result.completedCompactFits, 78L)
-    assertEquals(result.refitMethod, CanonicalRankRefitMethod.ExactPermutedTailQrCrossSvd)
+    assertEquals(result.refitMethod, CanonicalRankRefitMethod.ScoreOrthogonalPermutedTailQrCrossSvdV2)
     result.receipts.foreach: receipt =>
       assertEquals(receipt.allocated.value, 39)
       assertEquals(receipt.consumed.value, 39)
@@ -138,15 +140,14 @@ class CanonicalRankSuite extends munit.FunSuite:
     // randomized fits here independently exercise its nonzero fit surface.
     val rows = Vector(1,5,10,13,9,6,7,4,11,14,2,3,16,15,12,8).map(_ - 1)
     val plans = Vector(rows, Vector.tabulate(16)(i => rows.indexOf(i)))
-    for rank <- 0 to 1 do
-      val target = DMat.tabulate(16, 2)((i, j) => if j == 0 && rank == 1 then .8 * walsh(i, 1) + .6 * walsh(i, 8) else walsh(i, if j == 0 then 8 else 3))
-      val problem = right(StepwiseCanonicalRank.from(x, target))
-      for rows <- plans; step <- 0 until 2 do
-        val reduced = right(problem.nullStatistics(permutation(rows)))
-        val left = DMat.tabulate(16, problem.leftVariables.cols - step)((i, j) => problem.leftVariables(rows(i), j + step))
-        val rightSide = DMat.tabulate(16, problem.rightVariables.cols - step)((i, j) => problem.rightVariables(i, j + step))
-        val full = right(StepwiseCanonicalRank.classical(left, rightSide)).correlations.toVector.map(r => -math.log1p(-r*r)).sum
-        assertEqualsDouble(reduced(step), full, 1e-11)
+    val target = DMat.tabulate(16, 2)((i, j) => if j == 0 then .8 * walsh(i, 1) + .6 * walsh(i, 8) else walsh(i, 3))
+    val problem = right(StepwiseCanonicalRank.from(x, target))
+    for rows <- plans; step <- 0 until 2 do
+      val reduced = right(problem.nullStatistics(permutation(rows)))
+      val left = DMat.tabulate(16, problem.leftVariables.cols - step)((i, j) => problem.leftVariables(rows(i), j + step))
+      val rightSide = DMat.tabulate(16, problem.rightVariables.cols - step)((i, j) => problem.rightVariables(i, j + step))
+      val full = right(StepwiseCanonicalRank.classical(left, rightSide)).correlations.toVector.map(r => -math.log1p(-r*r)).sum
+      assertEqualsDouble(reduced(step), full, 1e-11)
 
   test("distinct non-identity sampling equals the complete tiny group without success conditioning"):
     val left = DMat.dense(3, 1, Vector(1.0,2.0,4.0))

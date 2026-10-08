@@ -49,6 +49,7 @@ enum InferenceError:
   case FailedAssumption(id: AssumptionId, detail: String)
   case NonFiniteStatistic(role: String, value: Double)
   case RankLoss(expected: Int, actual: Int)
+  case UnidentifiedCanonicalTail(removed: Int, previous: Double, next: Double, tolerance: Double)
   case UnitBeyondRank(unit: UnitId, rank: Int)
   case ReplicateFailure(replicate: ReplicateId, cause: InferenceError)
   case BudgetExhausted(consumed: Int, allocated: Int)
@@ -125,6 +126,8 @@ enum InferenceError:
         s"$role must be finite, got $value"
       case RankLoss(expected, actual) =>
         s"replicate rank dropped from $expected to $actual"
+      case UnidentifiedCanonicalTail(removed, previous, next, tolerance) =>
+        s"canonical tail after $removed removed modes splits roots $previous and $next within tolerance $tolerance"
       case UnitBeyondRank(unit, rank) =>
         s"unit ${unit.value} is beyond fitted rank $rank"
       case ReplicateFailure(replicate, cause) =>
