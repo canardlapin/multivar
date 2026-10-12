@@ -460,8 +460,7 @@ object VariationalFunctionalFrames:
     val operatorIdentities = (target.operators :+ oracleIdentity).distinct
     val resultIdentity = ValueIdentity.Derived(s"$method-result", results)
     val termination = stopping match
-      case VariationalFrameStopping.FirstOrder(FirstOrderStoppingStatus.Converged) => NumericalTermination.Converged
-      case VariationalFrameStopping.FirstOrder(FirstOrderStoppingStatus.IterationLimit) => NumericalTermination.IterationLimit
+      case VariationalFrameStopping.FirstOrder(status) => GaleStopping.termination(status)
       case VariationalFrameStopping.Split(SplitStoppingStatus.Converged(_)) => NumericalTermination.Converged
       case VariationalFrameStopping.Split(SplitStoppingStatus.IterationLimit(_)) => NumericalTermination.IterationLimit
       case VariationalFrameStopping.Split(SplitStoppingStatus.Infeasible(_)) => NumericalTermination.Infeasible

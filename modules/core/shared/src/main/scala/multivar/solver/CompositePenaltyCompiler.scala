@@ -676,9 +676,7 @@ final class CompiledCompositeSparseSmooth[Feature <: SemanticSpace] private[mult
       evidence <- SemanticOptimizationEvidence
         .from(
           bindings,
-          status match
-            case FirstOrderStoppingStatus.Converged => NumericalTermination.Converged
-            case FirstOrderStoppingStatus.IterationLimit => NumericalTermination.IterationLimit,
+          GaleStopping.termination(status),
           stationarity = Some(stationarity),
           feasibility = Some(feasibility),
           objectiveGap = Some(gap)

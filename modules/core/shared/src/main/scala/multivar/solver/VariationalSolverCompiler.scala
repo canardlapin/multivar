@@ -11,7 +11,6 @@ import gale.optim.FirstOrderConfig
 import gale.optim.FirstOrderError
 import gale.optim.FirstOrderMethod
 import gale.optim.FirstOrderSolvers
-import gale.optim.FirstOrderStoppingStatus
 import gale.optim.FirstOrderTolerance
 import gale.optim.LinearCompositeFunctional
 import gale.linalg.DoubleLinearOperator
@@ -346,9 +345,7 @@ final class CompiledAlignedScorePenalty private[multivar] (
         solution,
         config.tolerance
       )
-      status = solution.status match
-        case FirstOrderStoppingStatus.Converged => SplitStoppingStatus.Converged(certificate)
-        case FirstOrderStoppingStatus.IterationLimit => SplitStoppingStatus.IterationLimit(certificate)
+      status = GaleStopping.split(solution.status, certificate)
     yield
       AlignedScoreSolution(
         sourceParameter,
@@ -393,9 +390,7 @@ final class CompiledOverlappingGroups[
       parameter <- lift.aggregate(auxiliary)
       dual = identity(dualValue)
       certificate <- liftedGroupCertificate(parameter, auxiliary, dual, solution, config.tolerance)
-      status = solution.status match
-        case FirstOrderStoppingStatus.Converged => SplitStoppingStatus.Converged(certificate)
-        case FirstOrderStoppingStatus.IterationLimit => SplitStoppingStatus.IterationLimit(certificate)
+      status = GaleStopping.split(solution.status, certificate)
     yield LiftedGroupSolution(parameter, auxiliary, dual, solution.objective, status, solution.certificate)
 
   private def liftedGroupCertificate(
@@ -478,9 +473,7 @@ final class CompiledLinearCompositePenalty[
         config.tolerance,
         solution.certificate
       )
-      status = solution.status match
-        case FirstOrderStoppingStatus.Converged => SplitStoppingStatus.Converged(certificate)
-        case FirstOrderStoppingStatus.IterationLimit => SplitStoppingStatus.IterationLimit(certificate)
+      status = GaleStopping.split(solution.status, certificate)
     yield
       PrimalDualSolution(
         parameter,

@@ -11,7 +11,6 @@ import gale.optim.FirstOrderCertificate
 import gale.optim.FirstOrderConfig
 import gale.optim.FirstOrderError
 import gale.optim.FirstOrderSolvers
-import gale.optim.FirstOrderStoppingStatus
 import gale.optim.ProximalTerm
 import gale.optim.SmoothObjective
 
@@ -211,16 +210,12 @@ final class FittedLatentEncoder[
           )
           .left
           .map(LatentEncodingError.Guarantee.apply)
-        termination = solution.status match
-          case FirstOrderStoppingStatus.Converged => NumericalTermination.Converged
-          case FirstOrderStoppingStatus.IterationLimit => NumericalTermination.IterationLimit
+        termination = GaleStopping.termination(solution.status)
         evidence <- SemanticOptimizationEvidence
           .from(bindings, termination, stationarity = Some(residual))
           .left
           .map(LatentEncodingError.Guarantee.apply)
-        admittedClaim = solution.status match
-          case FirstOrderStoppingStatus.Converged => OptimizationClaimClass.Stationary
-          case FirstOrderStoppingStatus.IterationLimit => OptimizationClaimClass.Unresolved
+        admittedClaim = GaleStopping.stationaryClaim(solution.status)
         achievedGuarantee <- OptimizationGuaranteeAdmission
           .admit(
             MathematicalContractCatalog.generalizedLowRankModel,
