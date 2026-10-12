@@ -46,7 +46,15 @@ object CanonicalResidualBasis:
         basis <- method match
           case CanonicalResidualMethod.HuhJhun =>
             val selectors = DMat.tabulate(nuisance.rows, count)((i, j) => if i == j + rank then 1.0 else 0.0)
-            linear("Huh-Jhun orthogonal complement", qr.applyQ(selectors))
+            // A redundant column can retain roundoff after the rank cutoff.
+            // Its otherwise valid QR reflector rotates the residual coordinates
+            // by an arbitrary amount. Permuting those coordinates then depends
+            // on that roundoff. Build Q from only the measured independent
+            // nuisance columns, in the already selected pivot order.
+            val independentQr = if rank == nuisance.cols then qr else
+              val independent = DMat.tabulate(nuisance.rows, rank)((i, j) => nuisance(i, qr.columnPermutation(j)))
+              independent.qr(QROptions(pivoting = QRPivoting.Disabled, rankTolerance = Some(1e-12)))
+            linear("Huh-Jhun orthogonal complement", independentQr.applyQ(selectors))
           case CanonicalResidualMethod.Theil(rows) =>
             if rows.size != count || rows.distinct.size != rows.size || rows.exists(i => i < 0 || i >= nuisance.rows) then
               Left(InferenceError.InvalidPartition(s"Theil selection must contain $count distinct actual source rows"))
